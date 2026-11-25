@@ -20,9 +20,14 @@ import {
   fitDimensionsByAxis,
   fitDimensionsToMaxSide,
 } from '../core/imagePreprocess';
+import {
+  DEFAULT_PREVIEW3D_SETTINGS,
+  type Preview3DSettings,
+} from '../core/preview3d/craftCatalog';
 import { ALGORITHM_OPTIONS, type ConvertAlgorithm } from '../workers/convert.worker';
 
 export type EditorTool = 'move' | 'brush' | 'eraser' | 'eyedropper' | 'bucket' | 'line' | 'rect';
+export type ViewMode = '2d' | '3d';
 export type GridStyle = 'gapped' | 'line' | 'seamless';
 export type CoordFormat = 'number' | 'alpha-col';
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -169,6 +174,8 @@ export interface EditorState {
   theme: ThemeMode;
   maxHistorySteps: number;
   autoSaveEnabled: boolean;
+  viewMode: ViewMode;
+  preview3d: Preview3DSettings;
 
   // History
   history: HistoryEntry[];
@@ -198,6 +205,9 @@ export interface EditorState {
   setMaxHistorySteps: (steps: number) => void;
   setAutoSaveEnabled: (v: boolean) => void;
   setBgTolerance: (v: number) => void;
+  setViewMode: (mode: ViewMode) => void;
+  updatePreview3d: (patch: Partial<Preview3DSettings>) => void;
+  resetPreview3d: () => void;
 
   // Conversion & image actions
   setSourceImage: (src: SourceImageData | null, autoConvert?: boolean, targetMaxSide?: number) => void;
@@ -304,6 +314,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   theme: 'light',
   maxHistorySteps: 100,
   autoSaveEnabled: true,
+  viewMode: '2d',
+  preview3d: { ...DEFAULT_PREVIEW3D_SETTINGS },
 
   history: [
     {
@@ -364,6 +376,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
   setAutoSaveEnabled: (autoSaveEnabled) => set({ autoSaveEnabled }),
   setBgTolerance: (bgTolerance) => set({ bgTolerance }),
+  setViewMode: (viewMode) => set({ viewMode }),
+  updatePreview3d: (patch) =>
+    set((s) => ({
+      preview3d: { ...s.preview3d, ...patch },
+    })),
+  resetPreview3d: () => set({ preview3d: { ...DEFAULT_PREVIEW3D_SETTINGS } }),
 
   setSourceImage: (sourceImage, autoConvert = true, targetMaxSide) => {
     set({ sourceImage });

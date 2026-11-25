@@ -8,6 +8,18 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/three')) {
+            return 'three-vendor';
+          }
+          return undefined;
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

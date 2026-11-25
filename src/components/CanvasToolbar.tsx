@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Box,
   Check,
   Eraser,
   FlipHorizontal2,
@@ -48,6 +49,7 @@ export const CanvasToolbar: React.FC = () => {
   const redo = useEditorStore((s) => s.redo);
   const jumpToHistory = useEditorStore((s) => s.jumpToHistory);
   const resetToInitial = useEditorStore((s) => s.resetToInitial);
+  const setViewMode = useEditorStore((s) => s.setViewMode);
 
   const [showHistory, setShowHistory] = useState(false);
   const historyMenuRef = useRef<HTMLDivElement>(null);
@@ -284,6 +286,23 @@ export const CanvasToolbar: React.FC = () => {
           style={{ color: 'var(--md-on-surface-variant)' }}
         >
           <Minus className="w-3 h-3 inline" />1:1
+        </button>
+
+        <div
+          className="w-px h-5 mx-0.5"
+          style={{ backgroundColor: 'var(--md-outline-variant)' }}
+        />
+
+        <button
+          type="button"
+          onClick={() => setViewMode('3d')}
+          aria-label="打开 3D 成品预览 (P)"
+          title="切换至 3D 成品预览 (快捷键 P)"
+          className="h-7 px-2.5 rounded-full text-xs font-medium flex items-center gap-1 gemini-tonal-btn"
+          style={{ color: 'var(--md-primary)' }}
+        >
+          <Box className="w-3.5 h-3.5" />
+          <span>3D 预览</span>
         </button>
       </div>
     </div>

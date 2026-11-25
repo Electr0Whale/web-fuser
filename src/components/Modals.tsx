@@ -960,6 +960,7 @@ const OPEN_SOURCE_CREDITS: Array<{
     category: '开源框架与依赖库',
     items: [
       { name: 'React', url: 'https://github.com/facebook/react', desc: 'UI 组件框架 (MIT)' },
+      { name: 'Three.js', url: 'https://github.com/mrdoob/three.js', desc: 'WebGL 3D 物理渲染引擎 (MIT)' },
       { name: 'Vite', url: 'https://github.com/vitejs/vite', desc: '前端构建与开发工具 (MIT)' },
       { name: 'Tailwind CSS', url: 'https://github.com/tailwindlabs/tailwindcss', desc: '原子化样式框架 (MIT)' },
       { name: 'Zustand', url: 'https://github.com/pmndrs/zustand', desc: '轻量状态管理 (MIT)' },
@@ -989,6 +990,8 @@ export const ShortcutsHelpModal: React.FC<{ onClose: () => void }> = ({ onClose 
             ['滚轮 / + -', '缩放画布 (10%–400%)'],
             ['Ctrl + Z', '撤销上一步'],
             ['Ctrl + Y / Shift+Z', '重做'],
+            ['P', '切换 2D 编辑 / 3D 成品预览'],
+            ['3D 视角', '左键旋转 / 右键平移 / 滚轮缩放'],
           ].map(([k, desc]) => (
             <div
               key={k}

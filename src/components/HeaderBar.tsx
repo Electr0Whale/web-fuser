@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
 import {
+  Box,
   FilePlus2,
   FolderOpen,
+  Grid,
   Grid3x3,
   HelpCircle,
   Moon,
@@ -35,6 +37,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   const isConverting = useEditorStore((s) => s.isConverting);
   const theme = useEditorStore((s) => s.theme);
   const setTheme = useEditorStore((s) => s.setTheme);
+  const viewMode = useEditorStore((s) => s.viewMode);
+  const setViewMode = useEditorStore((s) => s.setViewMode);
 
   const [editingName, setEditingName] = useState(false);
   const archiveInputRef = useRef<HTMLInputElement>(null);
@@ -143,8 +147,49 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         </div>
       </div>
 
-      {/* Right: Project Pill Actions + Theme + Help */}
+      {/* Right: Mode Switch + Project Pill Actions + Theme + Help */}
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        {!compact && (
+          <div
+            role="group"
+            aria-label="视图模式切换"
+            className="hidden lg:flex items-center p-0.5 rounded-full border mr-1"
+            style={{
+              backgroundColor: 'var(--md-surface-container)',
+              borderColor: 'var(--md-outline-variant)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setViewMode('2d')}
+              aria-pressed={viewMode === '2d'}
+              title="切换至 2D 图纸编辑 (P)"
+              className="h-8 px-3 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors"
+              style={{
+                backgroundColor: viewMode === '2d' ? 'var(--md-primary)' : 'transparent',
+                color: viewMode === '2d' ? 'var(--md-on-primary)' : 'var(--md-on-surface-variant)',
+              }}
+            >
+              <Grid className="w-3.5 h-3.5" />
+              <span>2D 编辑</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('3d')}
+              aria-pressed={viewMode === '3d'}
+              title="切换至 3D 成品预览 (P)"
+              className="h-8 px-3 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors"
+              style={{
+                backgroundColor: viewMode === '3d' ? 'var(--md-primary)' : 'transparent',
+                color: viewMode === '3d' ? 'var(--md-on-primary)' : 'var(--md-on-surface-variant)',
+              }}
+            >
+              <Box className="w-3.5 h-3.5" />
+              <span>3D 预览</span>
+            </button>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={onRequestNew}

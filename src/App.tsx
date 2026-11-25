@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { CanvasToolbar } from './components/CanvasToolbar';
 import { CanvasViewport } from './components/CanvasViewport';
 import { HeaderBar } from './components/HeaderBar';
@@ -15,6 +15,8 @@ import {
 import { RightBomPanel } from './components/RightBomPanel';
 import { parseImportedPatternFile, saveProjectToStorage } from './storage/projectStorage';
 import { applyThemeToDom, useEditorStore } from './store/editorStore';
+
+const Preview3DWorkspace = lazy(() => import('./components/preview3d/Preview3DWorkspace'));
 
 interface ToastState {
   message: string;
@@ -44,6 +46,8 @@ export function App() {
   const setZoom = useEditorStore((s) => s.setZoom);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
+  const viewMode = useEditorStore((s) => s.viewMode);
+  const setViewMode = useEditorStore((s) => s.setViewMode);
 
   const [toast, setToast] = useState<ToastState | null>(null);
   const [showExport, setShowExport] = useState(false);
@@ -107,6 +111,11 @@ export function App() {
       }
 
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key.toLowerCase() === 'p') {
+        setViewMode(viewMode === '3d' ? '2d' : '3d');
+        return;
+      }
+      if (viewMode === '3d') return;
       switch (e.key.toLowerCase()) {
         case 'q':
           setTool('brush');
@@ -143,7 +152,7 @@ export function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [redo, setShowCodes, setTool, setZoom, showCodes, undo, zoom]);
+  }, [redo, setShowCodes, setTool, setViewMode, setZoom, showCodes, undo, viewMode, zoom]);
 
   const handleSaveProject = useCallback(
     async (silent = false) => {
@@ -232,6 +241,24 @@ export function App() {
           onOpenStats={() => setShowStats(true)}
           onOpenExport={() => setShowExport(true)}
         />
+      ) : viewMode === '3d' ? (
+        <main className="flex-1 min-h-0 flex overflow-hidden">
+          <Suspense
+            fallback={
+              <div
+                className="flex-1 flex items-center justify-center text-xs"
+                style={{
+                  backgroundColor: 'var(--md-surface-container)',
+                  color: 'var(--md-on-surface-variant)',
+                }}
+              >
+                正在加载 3D 渲染引擎…
+              </div>
+            }
+          >
+            <Preview3DWorkspace onToast={showToast} />
+          </Suspense>
+        </main>
       ) : (
         <main className="flex-1 min-h-0 flex overflow-hidden">
           <LeftControlPanel onToast={showToast} />

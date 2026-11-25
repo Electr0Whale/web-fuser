@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import {
+  Box,
   Eraser,
   Hand,
   Hash,
@@ -18,6 +19,8 @@ import { CanvasViewport } from './CanvasViewport';
 import { LeftControlPanel } from './LeftControlPanel';
 import { RightBomPanel } from './RightBomPanel';
 
+const Preview3DWorkspace = lazy(() => import('./preview3d/Preview3DWorkspace'));
+
 interface MobileWorkbenchProps {
   onToast: (msg: string, tone?: 'info' | 'success' | 'warn' | 'danger') => void;
   onOpenPalettePicker: () => void;
@@ -26,7 +29,7 @@ interface MobileWorkbenchProps {
   onOpenExport: () => void;
 }
 
-type MobileTab = 'canvas' | 'settings' | 'colors' | 'bom';
+type MobileTab = 'canvas' | 'preview3d' | 'settings' | 'colors' | 'bom';
 
 export const MobileWorkbench: React.FC<MobileWorkbenchProps> = ({
   onToast,
@@ -64,6 +67,7 @@ export const MobileWorkbench: React.FC<MobileWorkbenchProps> = ({
 
   const TABS: Array<{ id: MobileTab; label: string; icon: React.ReactNode }> = [
     { id: 'canvas', label: '图纸', icon: <Grid className="w-4 h-4" /> },
+    { id: 'preview3d', label: '3D', icon: <Box className="w-4 h-4" /> },
     { id: 'settings', label: '设置', icon: <Settings2 className="w-4 h-4" /> },
     { id: 'colors', label: '颜色', icon: <Palette className="w-4 h-4" /> },
     { id: 'bom', label: '清单', icon: <ListChecks className="w-4 h-4" /> },
@@ -74,7 +78,7 @@ export const MobileWorkbench: React.FC<MobileWorkbenchProps> = ({
       {/* M3 Tab Bar */}
       <nav
         aria-label="移动端工作区标签"
-        className="shrink-0 grid grid-cols-4 border-b"
+        className="shrink-0 grid grid-cols-5 border-b"
         style={{
           backgroundColor: 'var(--md-surface)',
           borderColor: 'var(--md-outline-subtle)',
@@ -104,6 +108,23 @@ export const MobileWorkbench: React.FC<MobileWorkbenchProps> = ({
       {/* Main tab content */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {tab === 'canvas' && <CanvasViewport />}
+        {tab === 'preview3d' && (
+          <Suspense
+            fallback={
+              <div
+                className="flex-1 flex items-center justify-center text-xs"
+                style={{
+                  backgroundColor: 'var(--md-surface-container)',
+                  color: 'var(--md-on-surface-variant)',
+                }}
+              >
+                正在加载 3D 渲染引擎…
+              </div>
+            }
+          >
+            <Preview3DWorkspace compact onToast={onToast} onBackTo2D={() => setTab('canvas')} />
+          </Suspense>
+        )}
         {tab === 'settings' && <LeftControlPanel onToast={onToast} fullWidth />}
         {tab === 'colors' && (
           <div
@@ -174,7 +195,8 @@ export const MobileWorkbench: React.FC<MobileWorkbenchProps> = ({
         )}
       </div>
 
-      {/* Bottom Mobile Tool Dock */}
+      {/* Bottom Mobile Tool Dock (hidden in 3D preview to maximize viewport) */}
+      {tab !== 'preview3d' && (
       <div
         className="shrink-0 h-14 px-2 border-t flex items-center justify-around gap-1"
         style={{
@@ -249,6 +271,7 @@ export const MobileWorkbench: React.FC<MobileWorkbenchProps> = ({
           <span>色号</span>
         </button>
       </div>
+      )}
     </div>
   );
 };
