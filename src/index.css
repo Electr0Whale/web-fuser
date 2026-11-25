@@ -1,0 +1,83 @@
+@import "tailwindcss";
+@import "./styles/tokens.css";
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: var(--md-surface);
+    color: var(--md-on-surface);
+    font-family: 'Google Sans Text', 'Inter', 'Roboto', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Google Sans', 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  .font-mono {
+    font-family: 'Roboto Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--md-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* M3 Callout */
+.m3-callout {
+  border-radius: 8px;
+  border-left-width: 4px;
+  border-left-style: solid;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.m3-callout-info {
+  background-color: var(--md-info-bg);
+  color: var(--md-info-fg);
+  border-left-color: var(--md-info-fg);
+}
+
+.m3-callout-warn {
+  background-color: var(--md-warn-bg);
+  color: var(--md-warn-fg);
+  border-left-color: var(--md-warn-fg);
+}
+
+.m3-callout-danger {
+  background-color: var(--md-danger-bg);
+  color: var(--md-danger-fg);
+  border-left-color: var(--md-danger-fg);
+}
+
+.m3-callout-success {
+  background-color: var(--md-success-bg);
+  color: var(--md-success-fg);
+  border-left-color: var(--md-success-fg);
+}
+
+.m3-hover:hover {
+  background-color: var(--md-state-hover);
+}
+
+/* Clean scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--md-outline-variant);
+  border-radius: 9999px;
+}

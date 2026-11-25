@@ -1,0 +1,14 @@
+node_modules
+dist
+.DS_Store
+*.local
+*.tsbuildinfo
+*.metadata.json
+browser_evidence
+browser_sandbox
+.user_uploaded
+.system_generated
+scratch
+comparison_4x_zoom.png
+output_*.png
+results.md
