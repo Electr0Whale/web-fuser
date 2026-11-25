@@ -49,7 +49,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
       ? '有未保存更改'
       : lastSavedAt
         ? `已自动保存 ${new Date(lastSavedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
-        : '本地离线就绪';
+        : '已就绪';
 
   return (
     <header
@@ -79,7 +79,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 Bead Studio
               </div>
               <div className="text-[11px]" style={{ color: 'var(--md-on-surface-variant)' }}>
-                纯本地拼豆图纸工坊
+                拼豆图纸工坊
               </div>
             </div>
           )}
@@ -159,7 +159,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         <button
           type="button"
           onClick={onSaveProject}
-          aria-label="保存当前图纸到本地"
+          aria-label="保存当前图纸"
           className="h-8 sm:h-9 w-8 sm:w-auto sm:px-3.5 rounded-full text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5 gemini-tonal-btn"
           style={{ color: 'var(--md-on-surface)' }}
         >
@@ -170,7 +170,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         <button
           type="button"
           onClick={onOpenLoadModal}
-          aria-label="读取本地工程"
+          aria-label="读取工程"
           className="h-8 sm:h-9 w-8 sm:w-auto sm:px-3.5 rounded-full text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5 gemini-tonal-btn"
           style={{ color: 'var(--md-on-surface)' }}
         >

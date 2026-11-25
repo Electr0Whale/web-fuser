@@ -159,7 +159,7 @@ export function App() {
       });
       markSaved(saved.id, saved.updatedAt);
       if (!silent) {
-        showToast(`已保存到本地工程：${saved.name}`, 'success');
+        showToast(`已保存工程：${saved.name}`, 'success');
       }
     },
     [brandId, getActivePalette, grid, height, markSaved, projectId, projectName, showToast, width],

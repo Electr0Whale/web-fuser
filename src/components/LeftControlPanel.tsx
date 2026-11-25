@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
+  Crop,
   Eraser,
   ImagePlus,
   Lock,
@@ -10,15 +11,18 @@ import {
   Upload,
 } from 'lucide-react';
 import { DITHER_MODE_OPTIONS, type DitherMode } from '../core/dithering';
+import { type CropTransformState } from '../core/imagePreprocess';
 import { BUILTIN_PALETTES, parseCustomPaletteFile } from '../data/palettes';
 import {
   CANVAS_SIZE_PRESETS,
   GUIDE_COLOR_OPTIONS,
   MAX_COLORS_PRESETS,
+  type RawSourceImage,
   useEditorStore,
   type GridStyle,
 } from '../store/editorStore';
 import { ALGORITHM_OPTIONS, type ConvertAlgorithm } from '../workers/convert.worker';
+import { ImagePreprocessModal } from './ImagePreprocessModal';
 
 interface LeftControlPanelProps {
   onToast: (msg: string, tone?: 'info' | 'success' | 'warn' | 'danger') => void;
@@ -33,6 +37,11 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
 }) => {
   const [openSection, setOpenSection] = useState<SectionKey>('size');
   const [isDragging, setIsDragging] = useState(false);
+  const [pendingPreprocess, setPendingPreprocess] = useState<{
+    raw: RawSourceImage;
+    initialCrop?: CropTransformState;
+    isNewUpload: boolean;
+  } | null>(null);
 
   const imgInputRef = useRef<HTMLInputElement>(null);
   const paletteInputRef = useRef<HTMLInputElement>(null);
@@ -100,6 +109,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
   const autoSaveEnabled = useEditorStore((s) => s.autoSaveEnabled);
 
   const setSourceImage = useEditorStore((s) => s.setSourceImage);
+  const applyBoardPreset = useEditorStore((s) => s.applyBoardPreset);
   const updateConversionParams = useEditorStore((s) => s.updateConversionParams);
   const setDimensions = useEditorStore((s) => s.setDimensions);
   const switchBrand = useEditorStore((s) => s.switchBrand);
@@ -117,36 +127,22 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
 
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      onToast('请上传 PNG、JPG 或 WebP 格式的本地图片。', 'warn');
+      onToast('请上传 PNG、JPG 或 WebP 格式的图片。', 'warn');
       return;
     }
     try {
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0);
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-        // Heuristic default algorithm: small crisp images -> pixel-art, larger photos -> photo
-        const isLikelyPixelArt =
-          Math.max(img.naturalWidth, img.naturalHeight) <= 320 ||
-          file.name.toLowerCase().endsWith('.png');
-        if (!isLikelyPixelArt) {
-          updateConversionParams({ algorithm: 'box-average' }, false);
-        }
-
-        setSourceImage({
-          rgba: imgData.data,
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-          previewUrl: url,
-          fileName: file.name,
+        setPendingPreprocess({
+          raw: {
+            url,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            fileName: file.name,
+          },
+          isNewUpload: true,
         });
-        onToast(`已载入 ${file.name} (${img.naturalWidth}×${img.naturalHeight})`, 'success');
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -230,7 +226,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold flex items-center gap-1.5">
             <ImagePlus className="w-4 h-4" style={{ color: 'var(--md-primary)' }} />
-            本地图片转图纸
+            图片转图纸
           </span>
           {convertDurationMs !== null && (
             <span className="font-mono text-[11px]" style={{ color: 'var(--md-on-surface-variant)' }}>
@@ -242,7 +238,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
         <button
           type="button"
           onClick={() => imgInputRef.current?.click()}
-          aria-label="选择或拖拽本地图片上传"
+          aria-label="选择或拖拽图片上传"
           className="w-full py-3 px-3 rounded-xl border border-dashed flex flex-col items-center gap-1.5 text-center m3-hover transition-colors"
           style={{ borderColor: 'var(--md-outline-variant)' }}
         >
@@ -266,7 +262,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
               <Upload className="w-5 h-5" style={{ color: 'var(--md-primary)' }} />
               <div className="text-xs font-medium">点击或拖拽图片到此处</div>
               <div className="text-[11px]" style={{ color: 'var(--md-on-surface-variant)' }}>
-                PNG / JPG / WebP · 100% 本地运算
+                支持 PNG / JPG / WebP
               </div>
             </>
           )}
@@ -282,6 +278,24 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
             e.target.value = '';
           }}
         />
+
+        {sourceImage?.raw && (
+          <button
+            type="button"
+            onClick={() =>
+              setPendingPreprocess({
+                raw: sourceImage.raw!,
+                initialCrop: sourceImage.cropState,
+                isNewUpload: false,
+              })
+            }
+            className="w-full h-7 px-3 rounded-full text-xs font-medium flex items-center justify-center gap-1.5 gemini-tonal-btn"
+            style={{ color: 'var(--md-primary)' }}
+          >
+            <Crop className="w-3.5 h-3.5" />
+            <span>裁剪 / 缩放预处理</span>
+          </button>
+        )}
 
         {/* One-click local background removal */}
         <div className="flex flex-col gap-1.5 pt-1 border-t" style={{ borderColor: 'var(--md-surface-container-high)' }}>
@@ -328,18 +342,20 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
           <div className="px-2 pb-2 flex flex-col gap-3">
             <div className="grid grid-cols-3 gap-1.5">
               {CANVAS_SIZE_PRESETS.map((sz) => {
-                const active = width === sz && height === sz;
+                const active =
+                  sourceImage && lockAspect
+                    ? Math.max(width, height) === sz
+                    : width === sz && height === sz;
                 return (
                   <button
                     key={sz}
                     type="button"
-                    onClick={() => {
-                      if (sourceImage) {
-                        updateConversionParams({ lockAspect: false, width: sz, height: sz });
-                      } else {
-                        setDimensions(sz, sz);
-                      }
-                    }}
+                    onClick={() => applyBoardPreset(sz)}
+                    title={
+                      sourceImage && lockAspect
+                        ? `拼豆板规格：最长边适配 ${sz} 格`
+                        : `设置画布为 ${sz}×${sz}`
+                    }
                     className="h-7 rounded-full font-mono text-xs transition-colors"
                     style={{
                       backgroundColor: active ? 'var(--md-primary)' : 'var(--md-surface-container)',
@@ -351,6 +367,12 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
                 );
               })}
             </div>
+
+            {sourceImage && lockAspect && (
+              <div className="text-[11px]" style={{ color: 'var(--md-on-surface-variant)' }}>
+                按原图比例适配 · 最长边 <span className="font-mono">{Math.max(width, height)}</span> 格
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <label className="flex-1 text-xs">
@@ -405,7 +427,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
               </label>
               <button
                 type="button"
-                onClick={() => updateConversionParams({ lockAspect: !lockAspect }, false)}
+                onClick={() => updateConversionParams({ lockAspect: !lockAspect }, !lockAspect)}
                 aria-label={lockAspect ? '解锁宽高比' : '锁定宽高比'}
                 title={lockAspect ? '已锁定宽高比' : '自由拉伸宽高'}
                 className="mt-4 w-8 h-8 rounded-full flex items-center justify-center gemini-tonal-btn"
@@ -856,7 +878,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
             </label>
 
             <label className="flex items-center justify-between text-xs cursor-pointer">
-              <span>定时自动保存到本地</span>
+              <span>定时自动保存</span>
               <input
                 type="checkbox"
                 checked={autoSaveEnabled}
@@ -884,6 +906,45 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
           </div>
         )}
       </div>
+
+      {pendingPreprocess && (
+        <ImagePreprocessModal
+          rawImage={pendingPreprocess.raw}
+          initialCrop={pendingPreprocess.initialCrop}
+          initialBoardSize={Math.max(width, height)}
+          onCancel={() => {
+            if (pendingPreprocess.isNewUpload) {
+              URL.revokeObjectURL(pendingPreprocess.raw.url);
+            }
+            setPendingPreprocess(null);
+          }}
+          onConfirm={({ rgba, width: cw, height: ch, previewUrl, cropState, boardSize }) => {
+            const { raw, isNewUpload } = pendingPreprocess;
+            if (isNewUpload) {
+              const isLikelyPixelArt =
+                Math.max(cw, ch) <= 320 || raw.fileName.toLowerCase().endsWith('.png');
+              if (!isLikelyPixelArt) {
+                updateConversionParams({ algorithm: 'box-average' }, false);
+              }
+            }
+            setSourceImage(
+              {
+                rgba,
+                width: cw,
+                height: ch,
+                previewUrl,
+                fileName: raw.fileName,
+                raw,
+                cropState,
+              },
+              true,
+              boardSize,
+            );
+            setPendingPreprocess(null);
+            onToast(`已载入 ${raw.fileName} (${cw}×${ch} px)`, 'success');
+          }}
+        />
+      )}
     </aside>
   );
 };

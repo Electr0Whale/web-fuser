@@ -15,6 +15,11 @@ import { downscalePhotoToGrid } from '../core/photoDownscaler';
 import { downscalePixelArtToGrid } from '../core/pixelDownscaler';
 import { BUILTIN_PALETTES, getPaletteById } from '../data/palettes';
 import type { DitherMode } from '../core/dithering';
+import {
+  type CropTransformState,
+  fitDimensionsByAxis,
+  fitDimensionsToMaxSide,
+} from '../core/imagePreprocess';
 import { ALGORITHM_OPTIONS, type ConvertAlgorithm } from '../workers/convert.worker';
 
 export type EditorTool = 'move' | 'brush' | 'eraser' | 'eyedropper' | 'bucket' | 'line' | 'rect';
@@ -49,12 +54,21 @@ export interface HistoryEntry {
   timestamp: number;
 }
 
+export interface RawSourceImage {
+  url: string;
+  width: number;
+  height: number;
+  fileName: string;
+}
+
 export interface SourceImageData {
   rgba: Uint8ClampedArray;
   width: number;
   height: number;
   previewUrl: string;
   fileName: string;
+  raw?: RawSourceImage;
+  cropState?: CropTransformState;
 }
 
 export interface GuideColorOption {
@@ -186,7 +200,8 @@ export interface EditorState {
   setBgTolerance: (v: number) => void;
 
   // Conversion & image actions
-  setSourceImage: (src: SourceImageData | null, autoConvert?: boolean) => void;
+  setSourceImage: (src: SourceImageData | null, autoConvert?: boolean, targetMaxSide?: number) => void;
+  applyBoardPreset: (presetSize: number) => void;
   updateConversionParams: (
     patch: Partial<{
       width: number;
@@ -350,22 +365,42 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setAutoSaveEnabled: (autoSaveEnabled) => set({ autoSaveEnabled }),
   setBgTolerance: (bgTolerance) => set({ bgTolerance }),
 
-  setSourceImage: (sourceImage, autoConvert = true) => {
+  setSourceImage: (sourceImage, autoConvert = true, targetMaxSide) => {
     set({ sourceImage });
     if (sourceImage && autoConvert) {
       const s = get();
-      if (s.lockAspect) {
-        const aspect = sourceImage.height / Math.max(1, sourceImage.width);
-        const newH = Math.max(8, Math.min(200, Math.round(s.pendingWidth * aspect)));
-        set({ pendingHeight: newH });
-      }
+      const boardSize = targetMaxSide ?? Math.max(s.pendingWidth, s.pendingHeight);
+      const fitted = fitDimensionsToMaxSide(sourceImage.width, sourceImage.height, boardSize);
+      set({
+        pendingWidth: fitted.width,
+        pendingHeight: fitted.height,
+        lockAspect: true,
+      });
       get().runConversion();
     }
+  },
+
+  applyBoardPreset: (presetSize) => {
+    const s = get();
+    const clamped = Math.max(8, Math.min(200, Math.round(presetSize)));
+    if (s.sourceImage) {
+      const nextDims = s.lockAspect
+        ? fitDimensionsToMaxSide(s.sourceImage.width, s.sourceImage.height, clamped)
+        : { width: clamped, height: clamped };
+      set({
+        pendingWidth: nextDims.width,
+        pendingHeight: nextDims.height,
+      });
+      get().runConversion();
+      return;
+    }
+    s.setDimensions(clamped, clamped);
   },
 
   updateConversionParams: (patch, reconvert = true) => {
     set((s) => {
       const next = { ...s };
+      const prevLock = s.lockAspect;
       if (patch.lockAspect !== undefined) next.lockAspect = patch.lockAspect;
       if (patch.algorithm !== undefined) next.algorithm = patch.algorithm;
       if (patch.maxColors !== undefined) next.maxColors = patch.maxColors;
@@ -381,17 +416,39 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         next.pendingWidth = Math.max(8, Math.min(200, Math.round(patch.width)));
         next.pendingHeight = Math.max(8, Math.min(200, Math.round(patch.height)));
       } else if (patch.width !== undefined) {
-        next.pendingWidth = Math.max(8, Math.min(200, Math.round(patch.width)));
         if (next.lockAspect && s.sourceImage) {
-          const aspect = s.sourceImage.height / Math.max(1, s.sourceImage.width);
-          next.pendingHeight = Math.max(8, Math.min(200, Math.round(next.pendingWidth * aspect)));
+          const fitted = fitDimensionsByAxis(
+            s.sourceImage.width,
+            s.sourceImage.height,
+            'w',
+            patch.width,
+          );
+          next.pendingWidth = fitted.width;
+          next.pendingHeight = fitted.height;
+        } else {
+          next.pendingWidth = Math.max(8, Math.min(200, Math.round(patch.width)));
         }
       } else if (patch.height !== undefined) {
-        next.pendingHeight = Math.max(8, Math.min(200, Math.round(patch.height)));
         if (next.lockAspect && s.sourceImage) {
-          const aspect = s.sourceImage.width / Math.max(1, s.sourceImage.height);
-          next.pendingWidth = Math.max(8, Math.min(200, Math.round(next.pendingHeight * aspect)));
+          const fitted = fitDimensionsByAxis(
+            s.sourceImage.width,
+            s.sourceImage.height,
+            'h',
+            patch.height,
+          );
+          next.pendingWidth = fitted.width;
+          next.pendingHeight = fitted.height;
+        } else {
+          next.pendingHeight = Math.max(8, Math.min(200, Math.round(patch.height)));
         }
+      } else if (patch.lockAspect === true && !prevLock && s.sourceImage) {
+        const fitted = fitDimensionsToMaxSide(
+          s.sourceImage.width,
+          s.sourceImage.height,
+          Math.max(next.pendingWidth, next.pendingHeight),
+        );
+        next.pendingWidth = fitted.width;
+        next.pendingHeight = fitted.height;
       }
       return next;
     });

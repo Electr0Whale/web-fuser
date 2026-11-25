@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Check,
   Eraser,
   FlipHorizontal2,
   FlipVertical2,
   Hand,
   Hash,
+  History,
   Minus,
   PaintBucket,
   Pencil,
@@ -46,6 +48,27 @@ export const CanvasToolbar: React.FC = () => {
   const redo = useEditorStore((s) => s.redo);
   const jumpToHistory = useEditorStore((s) => s.jumpToHistory);
   const resetToInitial = useEditorStore((s) => s.resetToInitial);
+
+  const [showHistory, setShowHistory] = useState(false);
+  const historyMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showHistory) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (historyMenuRef.current && !historyMenuRef.current.contains(e.target as Node)) {
+        setShowHistory(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowHistory(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showHistory]);
 
   return (
     <div
@@ -154,23 +177,65 @@ export const CanvasToolbar: React.FC = () => {
           <Redo2 className="w-4 h-4" />
         </button>
 
-        <select
-          aria-label="回滚历史步骤"
-          value={historyIndex}
-          onChange={(e) => jumpToHistory(Number(e.target.value))}
-          className="h-7 px-2 rounded-full text-xs border max-w-[130px] truncate"
-          style={{
-            backgroundColor: 'var(--md-surface-container)',
-            borderColor: 'var(--md-outline-variant)',
-            color: 'var(--md-on-surface)',
-          }}
-        >
-          {history.map((h, idx) => (
-            <option key={h.id} value={idx}>
-              #{idx + 1} {h.label}
-            </option>
-          ))}
-        </select>
+        <div className="relative" ref={historyMenuRef}>
+          <button
+            type="button"
+            onClick={() => setShowHistory((v) => !v)}
+            aria-label="历史操作记录"
+            aria-expanded={showHistory}
+            aria-haspopup="menu"
+            title="查看并回滚历史操作"
+            className="h-7 px-2.5 rounded-full text-xs font-medium flex items-center gap-1 transition-colors m3-hover"
+            style={{
+              backgroundColor: showHistory ? 'var(--md-primary-container)' : 'transparent',
+              color: showHistory ? 'var(--md-on-primary-container)' : 'var(--md-on-surface-variant)',
+            }}
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>历史</span>
+          </button>
+
+          {showHistory && (
+            <div
+              role="menu"
+              aria-label="历史操作记录列表"
+              className="absolute right-0 top-full mt-1.5 w-64 max-h-72 overflow-y-auto rounded-xl p-1.5 z-40 gemini-modal flex flex-col gap-0.5"
+            >
+              <div
+                className="px-2.5 py-1 text-[11px] font-medium flex items-center justify-between"
+                style={{ color: 'var(--md-on-surface-variant)' }}
+              >
+                <span>历史操作记录</span>
+                <span className="font-mono">{history.length} 步</span>
+              </div>
+              {history.map((h, idx) => {
+                const active = idx === historyIndex;
+                return (
+                  <button
+                    key={h.id}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      jumpToHistory(idx);
+                      setShowHistory(false);
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs flex items-center justify-between gap-2 m3-hover"
+                    style={{
+                      backgroundColor: active ? 'var(--md-primary-container)' : 'transparent',
+                      color: active ? 'var(--md-on-primary-container)' : 'var(--md-on-surface)',
+                    }}
+                  >
+                    <span className="truncate">
+                      <span className="font-mono opacity-70 mr-1.5">#{idx + 1}</span>
+                      {h.label}
+                    </span>
+                    {active && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <button
           type="button"

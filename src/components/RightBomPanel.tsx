@@ -45,6 +45,13 @@ export const RightBomPanel: React.FC<RightBomPanelProps> = ({
 
   const [selectedPresetId, setSelectedPresetId] = useState(THEME_SWATCH_PRESETS[0].id);
   const [mergeThreshold, setMergeThreshold] = useState(5);
+  const [mergeThresholdInput, setMergeThresholdInput] = useState('5');
+
+  const resolveMergeThreshold = (raw: string): number => {
+    const parsed = parseInt(raw, 10);
+    if (Number.isNaN(parsed)) return 5;
+    return Math.max(2, Math.min(999, parsed));
+  };
 
   const palette = useMemo(() => getActivePalette(), [brandId, customPalettes, getActivePalette]);
   const bom = useMemo(() => computeBomStats(grid, palette.colors), [grid, palette.colors]);
@@ -247,7 +254,7 @@ export const RightBomPanel: React.FC<RightBomPanelProps> = ({
               style={{ color: 'var(--md-on-surface-variant)' }}
             >
               <p className="font-medium mb-1">画布暂未放置豆子</p>
-              <p>在左侧上传本地图片，或使用画笔在画布中直接绘制。</p>
+              <p>在左侧上传图片，或使用画笔在画布中直接绘制。</p>
             </div>
           ) : (
             bom.entries.map((entry) => {
@@ -342,14 +349,17 @@ export const RightBomPanel: React.FC<RightBomPanelProps> = ({
             type="button"
             disabled={bom.entries.length < 2}
             onClick={() => {
-              const res = mergeRareColors(mergeThreshold);
+              const threshold = resolveMergeThreshold(mergeThresholdInput);
+              setMergeThreshold(threshold);
+              setMergeThresholdInput(String(threshold));
+              const res = mergeRareColors(threshold);
               if (res.mergedColorCount > 0) {
                 onToast(
-                  `已将 ${res.mergedColorCount} 种少于 ${mergeThreshold} 颗的杂色合并（共调整 ${res.changedCells} 格）`,
+                  `已将 ${res.mergedColorCount} 种少于 ${threshold} 颗的杂色合并（共调整 ${res.changedCells} 格）`,
                   'success',
                 );
               } else {
-                onToast(`当前没有少于 ${mergeThreshold} 颗的杂色需要合并。`, 'info');
+                onToast(`当前没有少于 ${threshold} 颗的杂色需要合并。`, 'info');
               }
             }}
             className="flex-1 h-8 px-3 rounded-full text-xs font-medium flex items-center justify-center gap-1.5 disabled:opacity-40 gemini-card m3-hover"
@@ -360,20 +370,51 @@ export const RightBomPanel: React.FC<RightBomPanelProps> = ({
             <Merge className="w-3.5 h-3.5" />
             <span>合并少量杂色</span>
           </button>
-          <select
-            aria-label="杂色合并阈值"
-            value={mergeThreshold}
-            onChange={(e) => setMergeThreshold(Number(e.target.value))}
-            className="h-8 px-2 rounded-full border font-mono text-xs"
-            style={{
-              backgroundColor: 'var(--md-surface)',
-              borderColor: 'var(--md-outline-variant)',
-            }}
+          <label
+            className="h-8 px-2.5 rounded-full flex items-center gap-1 gemini-card font-mono text-xs"
+            style={{ color: 'var(--md-on-surface-variant)' }}
+            title="输入合并阈值（2-999 颗）"
           >
-            <option value={3}>&lt;3颗</option>
-            <option value={5}>&lt;5颗</option>
-            <option value={10}>&lt;10颗</option>
-          </select>
+            <span>&lt;</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              aria-label="杂色合并颗数阈值"
+              value={mergeThresholdInput}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (!/^\d{0,3}$/.test(raw)) return;
+                setMergeThresholdInput(raw);
+                if (raw !== '') {
+                  const n = Number(raw);
+                  if (Number.isInteger(n) && n >= 2 && n <= 999) {
+                    setMergeThreshold(n);
+                  }
+                }
+              }}
+              onBlur={() => {
+                const clamped = resolveMergeThreshold(mergeThresholdInput);
+                setMergeThreshold(clamped);
+                setMergeThresholdInput(String(clamped));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  (e.currentTarget as HTMLInputElement).blur();
+                } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  const next = Math.max(
+                    2,
+                    Math.min(999, mergeThreshold + (e.key === 'ArrowUp' ? 1 : -1)),
+                  );
+                  setMergeThreshold(next);
+                  setMergeThresholdInput(String(next));
+                }
+              }}
+              className="w-8 bg-transparent text-center font-mono text-xs focus:outline-none"
+              style={{ color: 'var(--md-on-surface)' }}
+            />
+            <span>颗</span>
+          </label>
         </div>
 
         <button

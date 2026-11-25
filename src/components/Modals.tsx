@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
   Check,
+  ChevronDown,
+  ChevronRight,
   Download,
+  ExternalLink,
   FileCode2,
   FileJson,
   FileSpreadsheet,
@@ -224,7 +227,7 @@ export const ExportModal: React.FC<{
 
             <div className="pt-1 border-t" style={{ borderColor: 'var(--md-outline-variant)' }}>
               <span className="block text-xs mb-1.5" style={{ color: 'var(--md-on-surface-variant)' }}>
-                A4 PDF 打印版式
+                A4 PDF 打印版式（导出 PDF 时生效）
               </span>
               <div className="grid grid-cols-2 gap-1.5">
                 <button
@@ -266,14 +269,14 @@ export const ExportModal: React.FC<{
           </div>
 
           <div className="flex flex-col gap-2">
+            {/* Primary blue CTA: PNG */}
             <button
               type="button"
               disabled={busy}
               onClick={() =>
                 runAction(async () => {
-                  const blob = await exportFullZipBundle({
+                  const blob = await exportPatternToPngBlob({
                     projectName,
-                    brandId,
                     brandLabel: palette.label,
                     grid,
                     width,
@@ -287,10 +290,9 @@ export const ExportModal: React.FC<{
                     guideInterval,
                     guideColor,
                     coordFormat,
-                    pdfLayoutMode,
                   });
-                  triggerBlobDownload(blob, `${safeName}-全套图纸包.zip`);
-                }, '已打包生成 ZIP（含 PNG/SVG/PDF/XLSX/HTML/JSON）')
+                  triggerBlobDownload(blob, `${safeName}.png`);
+                }, '已导出高清 PNG 图纸')
               }
               className="w-full h-10 px-4 rounded-full text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
               style={{
@@ -298,39 +300,40 @@ export const ExportModal: React.FC<{
                 color: 'var(--md-on-primary)',
               }}
             >
-              <Archive className="w-4 h-4" />
-              <span>一键打包带走 (ZIP)</span>
+              <ImageIcon className="w-4 h-4" />
+              <span>导出 PNG 高清图</span>
             </button>
 
             <div className="grid grid-cols-2 gap-2">
+              {/* PDF occupies PNG's original first slot */}
               <button
                 type="button"
                 disabled={busy}
                 onClick={() =>
-                  runAction(async () => {
-                    const blob = await exportPatternToPngBlob({
+                  runAction(() => {
+                    const { blob, pageCount } = exportPatternToPdfBlob({
                       projectName,
                       brandLabel: palette.label,
                       grid,
                       width,
                       height,
                       palette: palette.colors,
-                      includeBom,
+                      layoutMode: pdfLayoutMode,
                       includeGuides,
                       includeCoordinates,
                       includeCodes,
-                      gridStyle,
                       guideInterval,
                       guideColor,
                       coordFormat,
                     });
-                    triggerBlobDownload(blob, `${safeName}.png`);
-                  }, '已导出高清 PNG 图纸')
+                    triggerBlobDownload(blob, `${safeName}.pdf`);
+                    onToast(`已导出 A4 PDF（共 ${pageCount} 页）`, 'success');
+                  }, 'PDF 生成完毕')
                 }
                 className="h-9 px-3 rounded-full text-xs font-medium border flex items-center justify-center gap-1.5 m3-hover"
                 style={{ borderColor: 'var(--md-outline-variant)' }}
               >
-                <ImageIcon className="w-3.5 h-3.5" /> PNG 高清图
+                <FileText className="w-3.5 h-3.5" /> PDF 打印版
               </button>
 
               <button
@@ -362,34 +365,37 @@ export const ExportModal: React.FC<{
                 <FileCode2 className="w-3.5 h-3.5" /> SVG 矢量
               </button>
 
+              {/* ZIP demoted to small secondary button */}
               <button
                 type="button"
                 disabled={busy}
                 onClick={() =>
-                  runAction(() => {
-                    const { blob, pageCount } = exportPatternToPdfBlob({
+                  runAction(async () => {
+                    const blob = await exportFullZipBundle({
                       projectName,
+                      brandId,
                       brandLabel: palette.label,
                       grid,
                       width,
                       height,
                       palette: palette.colors,
-                      layoutMode: pdfLayoutMode,
+                      includeBom,
                       includeGuides,
                       includeCoordinates,
                       includeCodes,
+                      gridStyle,
                       guideInterval,
                       guideColor,
                       coordFormat,
+                      pdfLayoutMode,
                     });
-                    triggerBlobDownload(blob, `${safeName}.pdf`);
-                    onToast(`已导出 A4 PDF（共 ${pageCount} 页）`, 'success');
-                  }, 'PDF 生成完毕')
+                    triggerBlobDownload(blob, `${safeName}-全套图纸包.zip`);
+                  }, '已打包生成 ZIP（含 PNG/SVG/PDF/XLSX/HTML/JSON）')
                 }
                 className="h-9 px-3 rounded-full text-xs font-medium border flex items-center justify-center gap-1.5 m3-hover"
                 style={{ borderColor: 'var(--md-outline-variant)' }}
               >
-                <FileText className="w-3.5 h-3.5" /> PDF 打印版
+                <Archive className="w-3.5 h-3.5" /> 打包下载 (ZIP)
               </button>
 
               <button
@@ -775,11 +781,11 @@ export const ProjectStorageModal: React.FC<{
   }, [sortBy]);
 
   return (
-    <ModalShell title="本地保存的工程槽位（最多 50 个）" onClose={onClose} widthClass="max-w-3xl">
+    <ModalShell title="已保存的工程槽位（最多 50 个）" onClose={onClose} widthClass="max-w-3xl">
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <span className="text-xs" style={{ color: 'var(--md-on-surface-variant)' }}>
-            共 {projects.length} / 50 个本地工程（离线保存在浏览器 IndexedDB 中）
+            共 {projects.length} / 50 个工程（存储于浏览器 IndexedDB）
           </span>
           <select
             aria-label="排序方式"
@@ -799,11 +805,11 @@ export const ProjectStorageModal: React.FC<{
 
         {loading ? (
           <div className="py-12 text-center text-sm" style={{ color: 'var(--md-on-surface-variant)' }}>
-            正在读取本地工程…
+            正在读取工程…
           </div>
         ) : projects.length === 0 ? (
           <div className="m3-callout m3-callout-info">
-            暂无已保存的工程。点击顶部栏的 <strong>保存</strong> 即可将当前图纸存入本地槽位。
+            暂无已保存的工程。点击顶部栏的 <strong>保存</strong> 即可将当前图纸存入槽位。
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[55vh] overflow-y-auto pr-1">
@@ -931,42 +937,142 @@ export const NewCanvasConfirmModal: React.FC<{
   </ModalShell>
 );
 
-export const ShortcutsHelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
-  <ModalShell title="快捷键与操作指南" onClose={onClose} widthClass="max-w-lg">
-    <div className="flex flex-col gap-3 text-xs">
-      <div className="m3-callout m3-callout-info">
-        所有图片转换、像素编辑与导出均在您的浏览器本地完成，不会上传任何数据到外部服务器。
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {[
-          ['Q', '画笔工具（支持拖动连线）'],
-          ['W', '橡皮擦'],
-          ['E', '取色器（吸取后自动切回画笔）'],
-          ['G', '油漆桶连通填充'],
-          ['L / R', '直线 / 矩形绘制'],
-          ['V / 按住空格', '拖拽平移画布'],
-          ['A', '显示 / 隐藏 # 色号'],
-          ['滚轮 / + -', '缩放画布 (10%–400%)'],
-          ['Ctrl + Z', '撤销上一步'],
-          ['Ctrl + Y / Shift+Z', '重做'],
-        ].map(([k, desc]) => (
-          <div
-            key={k}
-            className="rounded-lg p-2 border flex items-center justify-between gap-2"
-            style={{
-              backgroundColor: 'var(--md-surface-container)',
-              borderColor: 'var(--md-outline-variant)',
-            }}
+const OPEN_SOURCE_CREDITS: Array<{
+  category: string;
+  items: Array<{ name: string; url: string; desc: string }>;
+}> = [
+  {
+    category: '拼豆色卡数据',
+    items: [
+      {
+        name: 'HansBug/pindou-color-data',
+        url: 'https://github.com/HansBug/pindou-color-data',
+        desc: 'MARD、优肯 Artkal、COCO、漫漫、咪小窝、盼盼色卡数据',
+      },
+      {
+        name: 'maxcleme/beadcolors',
+        url: 'https://github.com/maxcleme/beadcolors',
+        desc: 'Hama Midi 与 Perler 国际色卡数据',
+      },
+    ],
+  },
+  {
+    category: '开源框架与依赖库',
+    items: [
+      { name: 'React', url: 'https://github.com/facebook/react', desc: 'UI 组件框架 (MIT)' },
+      { name: 'Vite', url: 'https://github.com/vitejs/vite', desc: '前端构建与开发工具 (MIT)' },
+      { name: 'Tailwind CSS', url: 'https://github.com/tailwindlabs/tailwindcss', desc: '原子化样式框架 (MIT)' },
+      { name: 'Zustand', url: 'https://github.com/pmndrs/zustand', desc: '轻量状态管理 (MIT)' },
+      { name: 'Lucide', url: 'https://github.com/lucide-icons/lucide', desc: '开源矢量图标库 (ISC)' },
+      { name: 'jsPDF', url: 'https://github.com/parallax/jsPDF', desc: 'PDF 排版与生成 (MIT)' },
+      { name: 'SheetJS (xlsx)', url: 'https://github.com/SheetJS/sheetjs', desc: 'Excel 表格读写 (Apache-2.0)' },
+      { name: 'JSZip', url: 'https://github.com/Stuk/jszip', desc: 'ZIP 归档打包 (MIT / GPLv3)' },
+    ],
+  },
+];
+
+export const ShortcutsHelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const [showCredits, setShowCredits] = useState(false);
+
+  return (
+    <ModalShell title="快捷键与操作指南" onClose={onClose} widthClass="max-w-lg">
+      <div className="flex flex-col gap-3 text-xs">
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            ['Q', '画笔工具（支持拖动连线）'],
+            ['W', '橡皮擦'],
+            ['E', '取色器（吸取后自动切回画笔）'],
+            ['G', '油漆桶连通填充'],
+            ['L / R', '直线 / 矩形绘制'],
+            ['V / 按住空格', '拖拽平移画布'],
+            ['A', '显示 / 隐藏 # 色号'],
+            ['滚轮 / + -', '缩放画布 (10%–400%)'],
+            ['Ctrl + Z', '撤销上一步'],
+            ['Ctrl + Y / Shift+Z', '重做'],
+          ].map(([k, desc]) => (
+            <div
+              key={k}
+              className="rounded-lg p-2 border flex items-center justify-between gap-2"
+              style={{
+                backgroundColor: 'var(--md-surface-container)',
+                borderColor: 'var(--md-outline-variant)',
+              }}
+            >
+              <span className="font-mono font-semibold" style={{ color: 'var(--md-primary)' }}>
+                {k}
+              </span>
+              <span className="text-right" style={{ color: 'var(--md-on-surface-variant)' }}>
+                {desc}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Default-collapsed Open Source Credits dropdown */}
+        <div
+          className="rounded-xl border overflow-hidden"
+          style={{
+            backgroundColor: 'var(--md-surface-container)',
+            borderColor: 'var(--md-outline-variant)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setShowCredits((v) => !v)}
+            aria-expanded={showCredits}
+            className="w-full px-3 py-2.5 flex items-center justify-between text-xs font-medium m3-hover"
+            style={{ color: 'var(--md-on-surface)' }}
           >
-            <span className="font-mono font-semibold" style={{ color: 'var(--md-primary)' }}>
-              {k}
-            </span>
-            <span className="text-right" style={{ color: 'var(--md-on-surface-variant)' }}>
-              {desc}
-            </span>
-          </div>
-        ))}
+            <span>开源项目与数据致谢</span>
+            {showCredits ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+          </button>
+
+          {showCredits && (
+            <div
+              className="px-3 pb-3 pt-2 border-t flex flex-col gap-3 max-h-56 overflow-y-auto"
+              style={{ borderColor: 'var(--md-outline-subtle)' }}
+            >
+              {OPEN_SOURCE_CREDITS.map((group) => (
+                <div key={group.category} className="flex flex-col gap-1.5">
+                  <div
+                    className="text-[11px] font-semibold"
+                    style={{ color: 'var(--md-on-surface-variant)' }}
+                  >
+                    {group.category}
+                  </div>
+                  {group.items.map((item) => (
+                    <a
+                      key={item.name}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2 m3-hover"
+                      style={{ backgroundColor: 'var(--md-surface)' }}
+                    >
+                      <div className="min-w-0">
+                        <div className="font-mono font-semibold truncate" style={{ color: 'var(--md-primary)' }}>
+                          {item.name}
+                        </div>
+                        <div className="text-[11px] truncate" style={{ color: 'var(--md-on-surface-variant)' }}>
+                          {item.desc}
+                        </div>
+                      </div>
+                      <ExternalLink
+                        className="w-3.5 h-3.5 shrink-0"
+                        style={{ color: 'var(--md-on-surface-variant)' }}
+                      />
+                    </a>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  </ModalShell>
-);
+    </ModalShell>
+  );
+};
