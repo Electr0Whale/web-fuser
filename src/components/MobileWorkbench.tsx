@@ -77,7 +77,7 @@ export const MobileWorkbench: React.FC<MobileWorkbenchProps> = ({
         className="shrink-0 grid grid-cols-4 border-b"
         style={{
           backgroundColor: 'var(--md-surface)',
-          borderColor: 'var(--md-outline-variant)',
+          borderColor: 'var(--md-outline-subtle)',
         }}
       >
         {TABS.map((item) => {
@@ -179,7 +179,7 @@ export const MobileWorkbench: React.FC<MobileWorkbenchProps> = ({
         className="shrink-0 h-14 px-2 border-t flex items-center justify-around gap-1"
         style={{
           backgroundColor: 'var(--md-surface)',
-          borderColor: 'var(--md-outline-variant)',
+          borderColor: 'var(--md-outline-subtle)',
         }}
       >
         {(

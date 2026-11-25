@@ -58,7 +58,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
       }`}
       style={{
         backgroundColor: 'var(--md-surface)',
-        borderColor: 'var(--md-outline-variant)',
+        borderColor: 'var(--md-outline-subtle)',
       }}
     >
       {/* Left: Brand + Project Name Pill */}
@@ -149,11 +149,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           type="button"
           onClick={onRequestNew}
           aria-label="新建空白图纸"
-          className="h-8 sm:h-9 w-8 sm:w-auto sm:px-3.5 rounded-full text-xs sm:text-sm font-medium border flex items-center justify-center gap-1.5 m3-hover transition-colors"
-          style={{
-            borderColor: 'var(--md-outline-variant)',
-            color: 'var(--md-on-surface)',
-          }}
+          className="h-8 sm:h-9 w-8 sm:w-auto sm:px-3.5 rounded-full text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5 gemini-tonal-btn"
+          style={{ color: 'var(--md-on-surface)' }}
         >
           <FilePlus2 className="w-4 h-4" />
           <span className="hidden sm:inline">新建</span>
@@ -163,11 +160,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           type="button"
           onClick={onSaveProject}
           aria-label="保存当前图纸到本地"
-          className="h-8 sm:h-9 w-8 sm:w-auto sm:px-3.5 rounded-full text-xs sm:text-sm font-medium border flex items-center justify-center gap-1.5 m3-hover transition-colors"
-          style={{
-            borderColor: 'var(--md-outline-variant)',
-            color: 'var(--md-on-surface)',
-          }}
+          className="h-8 sm:h-9 w-8 sm:w-auto sm:px-3.5 rounded-full text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5 gemini-tonal-btn"
+          style={{ color: 'var(--md-on-surface)' }}
         >
           <Save className="w-4 h-4" />
           <span className="hidden sm:inline">保存</span>
@@ -177,11 +171,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           type="button"
           onClick={onOpenLoadModal}
           aria-label="读取本地工程"
-          className="h-8 sm:h-9 w-8 sm:w-auto sm:px-3.5 rounded-full text-xs sm:text-sm font-medium border flex items-center justify-center gap-1.5 m3-hover transition-colors"
-          style={{
-            borderColor: 'var(--md-outline-variant)',
-            color: 'var(--md-on-surface)',
-          }}
+          className="h-8 sm:h-9 w-8 sm:w-auto sm:px-3.5 rounded-full text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5 gemini-tonal-btn"
+          style={{ color: 'var(--md-on-surface)' }}
         >
           <FolderOpen className="w-4 h-4" />
           <span className="hidden sm:inline">读取</span>
@@ -191,11 +182,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           type="button"
           onClick={() => archiveInputRef.current?.click()}
           aria-label="导入存档文件"
-          className="h-8 sm:h-9 w-8 sm:w-auto sm:px-3.5 rounded-full text-xs sm:text-sm font-medium border flex items-center justify-center gap-1.5 m3-hover transition-colors"
-          style={{
-            borderColor: 'var(--md-outline-variant)',
-            color: 'var(--md-on-surface)',
-          }}
+          className="h-8 sm:h-9 w-8 sm:w-auto sm:px-3.5 rounded-full text-xs sm:text-sm font-medium flex items-center justify-center gap-1.5 gemini-tonal-btn"
+          style={{ color: 'var(--md-on-surface)' }}
         >
           <Upload className="w-4 h-4" />
           <span className="hidden md:inline">导入存档</span>

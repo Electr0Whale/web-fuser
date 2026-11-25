@@ -13,7 +13,6 @@ export interface PixelDownscaleOptions {
   maxColors?: number; // 0 or undefined = unlimited
   metric?: ColorMetric;
   strokeStrength?: number; // 0..1, default 0.75
-  detectBorder?: boolean; // default true
   strayMinCount?: number; // default 3
 }
 
@@ -21,7 +20,6 @@ export interface PixelDownscaleResult {
   grid: Int16Array; // -1 for transparent/empty, >=0 palette index
   width: number;
   height: number;
-  detectedBorderWidth: number;
 }
 
 function rgbKey(r: number, g: number, b: number): number {
@@ -99,58 +97,6 @@ export function cleanStrayPaletteColors(
   }
 
   return { cleaned, paletteRgb: coreColors };
-}
-
-/**
- * Detect concentric solid-color border rings from the outer edge inward.
- */
-export function detectNestedBorder(
-  rgba: Uint8ClampedArray,
-  width: number,
-  height: number,
-): number {
-  const maxRing = Math.floor(Math.min(width, height) / 4);
-  let offset = 0;
-
-  while (offset < maxRing) {
-    const topIdx = (offset * width + offset) * 4;
-    if (rgba[topIdx + 3] < 128) break;
-    const refKey = rgbKey(rgba[topIdx], rgba[topIdx + 1], rgba[topIdx + 2]);
-    let uniform = true;
-
-    for (let x = offset; x < width - offset; x++) {
-      const t = (offset * width + x) * 4;
-      const b = ((height - 1 - offset) * width + x) * 4;
-      if (
-        rgba[t + 3] < 128 ||
-        rgba[b + 3] < 128 ||
-        rgbKey(rgba[t], rgba[t + 1], rgba[t + 2]) !== refKey ||
-        rgbKey(rgba[b], rgba[b + 1], rgba[b + 2]) !== refKey
-      ) {
-        uniform = false;
-        break;
-      }
-    }
-    if (!uniform) break;
-
-    for (let y = offset; y < height - offset; y++) {
-      const l = (y * width + offset) * 4;
-      const r = (y * width + (width - 1 - offset)) * 4;
-      if (
-        rgba[l + 3] < 128 ||
-        rgba[r + 3] < 128 ||
-        rgbKey(rgba[l], rgba[l + 1], rgba[l + 2]) !== refKey ||
-        rgbKey(rgba[r], rgba[r + 1], rgba[r + 2]) !== refKey
-      ) {
-        uniform = false;
-        break;
-      }
-    }
-    if (!uniform) break;
-    offset++;
-  }
-
-  return offset;
 }
 
 function morphBox(
@@ -554,75 +500,6 @@ function areaOverlapDownscaleRgb(
   return out;
 }
 
-function recommendedBorderWidth(minTargetDim: number, origBorder: number): number {
-  if (origBorder === 0) return 0;
-  if (minTargetDim >= 96) return 6;
-  if (minTargetDim >= 70) return 5;
-  return 4;
-}
-
-function addPixelFrame(
-  inner: Int32Array,
-  innerW: number,
-  innerH: number,
-  targetW: number,
-  targetH: number,
-): Int32Array {
-  const borderW = Math.floor((targetW - innerW) / 2);
-  const canvas = new Int32Array(targetW * targetH).fill(-1);
-  const white = rgbKey(255, 255, 255);
-  const black = rgbKey(0, 0, 0);
-
-  let rings: Array<[number, number]>;
-  if (borderW >= 4) {
-    rings = [[1, white], [borderW - 3, black], [1, white], [1, black]];
-  } else if (borderW === 3) {
-    rings = [[1, white], [1, black], [1, white]];
-  } else if (borderW === 2) {
-    rings = [[1, white], [1, black]];
-  } else {
-    rings = [[borderW, black]];
-  }
-
-  let offset = 0;
-  for (const [ringWidth, col] of rings) {
-    for (let r = 0; r < ringWidth; r++) {
-      for (let x = offset; x < targetW - offset; x++) {
-        canvas[offset * targetW + x] = col;
-        canvas[(targetH - 1 - offset) * targetW + x] = col;
-      }
-      for (let y = offset; y < targetH - offset; y++) {
-        canvas[y * targetW + offset] = col;
-        canvas[y * targetW + (targetW - 1 - offset)] = col;
-      }
-      offset++;
-    }
-  }
-
-  for (let y = 0; y < innerH; y++) {
-    for (let x = 0; x < innerW; x++) {
-      canvas[(y + borderW) * targetW + (x + borderW)] = inner[y * innerW + x];
-    }
-  }
-  return canvas;
-}
-
-function cropRgba(
-  rgba: Uint8ClampedArray,
-  width: number,
-  borderW: number,
-  cropW: number,
-  cropH: number,
-): Uint8ClampedArray {
-  const out = new Uint8ClampedArray(cropW * cropH * 4);
-  for (let y = 0; y < cropH; y++) {
-    const srcRow = ((y + borderW) * width + borderW) * 4;
-    const dstRow = y * cropW * 4;
-    out.set(rgba.subarray(srcRow, srcRow + cropW * 4), dstRow);
-  }
-  return out;
-}
-
 /**
  * Topology- and silhouette-preserving pixel-art downscaler mapped to a bead brand palette.
  */
@@ -639,49 +516,20 @@ export function downscalePixelArtToGrid(
     maxColors = 0,
     metric = 'ciede2000',
     strokeStrength = 0.75,
-    detectBorder = true,
     strayMinCount = 3,
   } = options;
 
   const { cleaned, paletteRgb } = cleanStrayPaletteColors(srcRgba, srcWidth, srcHeight, strayMinCount);
-  const detectedBorderWidth = detectBorder ? detectNestedBorder(cleaned, srcWidth, srcHeight) : 0;
-
-  let innerRgba = cleaned;
-  let innerSrcW = srcWidth;
-  let innerSrcH = srcHeight;
-  let outBorder = 0;
-
-  if (detectedBorderWidth > 0) {
-    const candidateBorder = recommendedBorderWidth(
-      Math.min(targetWidth, targetHeight),
-      detectedBorderWidth,
-    );
-    if (
-      targetWidth - 2 * candidateBorder >= 8 &&
-      targetHeight - 2 * candidateBorder >= 8 &&
-      srcWidth - 2 * detectedBorderWidth >= 8 &&
-      srcHeight - 2 * detectedBorderWidth >= 8
-    ) {
-      outBorder = candidateBorder;
-      innerSrcW = srcWidth - 2 * detectedBorderWidth;
-      innerSrcH = srcHeight - 2 * detectedBorderWidth;
-      innerRgba = cropRgba(cleaned, srcWidth, detectedBorderWidth, innerSrcW, innerSrcH);
-    }
-  }
-
-  const innerTargetW = targetWidth - 2 * outBorder;
-  const innerTargetH = targetHeight - 2 * outBorder;
-
-  const { darkStroke, brightStroke } = detectThinStrokes(innerRgba, innerSrcW, innerSrcH);
+  const { darkStroke, brightStroke } = detectThinStrokes(cleaned, srcWidth, srcHeight);
   const mildBoost = 0.65 * Math.max(0, Math.min(1, strokeStrength));
 
-  let innerRgbGrid = areaOverlapDownscaleRgb(
-    innerRgba,
-    innerSrcW,
-    innerSrcH,
+  let rgbGrid = areaOverlapDownscaleRgb(
+    cleaned,
+    srcWidth,
+    srcHeight,
     paletteRgb,
-    innerTargetW,
-    innerTargetH,
+    targetWidth,
+    targetHeight,
     darkStroke,
     brightStroke,
     mildBoost,
@@ -692,39 +540,34 @@ export function downscalePixelArtToGrid(
     const brightMinW = Math.max(0.18, 0.38 - 0.13 * strokeStrength);
     const darkProj = projectAndThinStroke(
       darkStroke,
-      innerSrcW,
-      innerSrcH,
-      innerTargetW,
-      innerTargetH,
+      srcWidth,
+      srcHeight,
+      targetWidth,
+      targetHeight,
       darkMinW,
     );
     const brightProj = projectAndThinStroke(
       brightStroke,
-      innerSrcW,
-      innerSrcH,
-      innerTargetW,
-      innerTargetH,
+      srcWidth,
+      srcHeight,
+      targetWidth,
+      targetHeight,
       brightMinW,
     );
 
     const blackKey = rgbKey(0, 0, 0);
     const whiteKey = rgbKey(255, 255, 255);
-    for (let i = 0; i < innerRgbGrid.length; i++) {
-      if (darkProj[i]) innerRgbGrid[i] = blackKey;
-      else if (brightProj[i]) innerRgbGrid[i] = whiteKey;
+    for (let i = 0; i < rgbGrid.length; i++) {
+      if (darkProj[i]) rgbGrid[i] = blackKey;
+      else if (brightProj[i]) rgbGrid[i] = whiteKey;
     }
-    innerRgbGrid = applyPixelPerfectCleanup(innerRgbGrid, innerTargetW, innerTargetH);
+    rgbGrid = applyPixelPerfectCleanup(rgbGrid, targetWidth, targetHeight);
   }
-
-  const finalRgbGrid =
-    outBorder > 0
-      ? addPixelFrame(innerRgbGrid, innerTargetW, innerTargetH, targetWidth, targetHeight)
-      : innerRgbGrid;
 
   const matcher = new PaletteMatcher(palette, metric);
   let grid: Int16Array = new Int16Array(targetWidth * targetHeight).fill(-1);
-  for (let i = 0; i < finalRgbGrid.length; i++) {
-    const col = finalRgbGrid[i];
+  for (let i = 0; i < rgbGrid.length; i++) {
+    const col = rgbGrid[i];
     if (col < 0) continue;
     grid[i] = matcher.match((col >> 16) & 0xff, (col >> 8) & 0xff, col & 0xff);
   }
@@ -740,6 +583,5 @@ export function downscalePixelArtToGrid(
     grid,
     width: targetWidth,
     height: targetHeight,
-    detectedBorderWidth,
   };
 }

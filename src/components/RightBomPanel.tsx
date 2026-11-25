@@ -60,16 +60,17 @@ export const RightBomPanel: React.FC<RightBomPanelProps> = ({
       className={`${fullWidth ? 'w-full' : 'w-[296px]'} shrink-0 h-full overflow-hidden border-l flex flex-col`}
       style={{
         backgroundColor: 'var(--md-surface-container)',
-        borderColor: 'var(--md-outline-variant)',
+        borderColor: 'var(--md-outline-subtle)',
       }}
     >
       {/* Top summary card */}
       <div className="p-3 pb-2 shrink-0 flex flex-col gap-2.5">
         <div
-          className="rounded-xl border p-3 flex flex-col gap-2"
+          className="rounded-xl p-3 flex flex-col gap-2"
           style={{
             backgroundColor: 'var(--md-surface-container-high)',
-            borderColor: 'var(--md-outline-variant)',
+            border: '1px solid var(--md-outline-subtle)',
+            boxShadow: 'var(--md-shadow-sm)',
           }}
         >
           <div className="flex items-center justify-between">
@@ -140,13 +141,7 @@ export const RightBomPanel: React.FC<RightBomPanelProps> = ({
         </div>
 
         {/* Active Brush Color & Quick Theme Swatches */}
-        <div
-          className="rounded-xl border p-2.5 flex flex-col gap-2"
-          style={{
-            backgroundColor: 'var(--md-surface)',
-            borderColor: 'var(--md-outline-variant)',
-          }}
-        >
+        <div className="rounded-xl p-2.5 flex flex-col gap-2 gemini-card">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span
@@ -245,13 +240,7 @@ export const RightBomPanel: React.FC<RightBomPanelProps> = ({
           )}
         </div>
 
-        <div
-          className="flex-1 overflow-y-auto rounded-xl border p-1.5 flex flex-col gap-1"
-          style={{
-            backgroundColor: 'var(--md-surface)',
-            borderColor: 'var(--md-outline-variant)',
-          }}
-        >
+        <div className="flex-1 overflow-y-auto rounded-xl p-1.5 flex flex-col gap-1 gemini-card">
           {bom.entries.length === 0 ? (
             <div
               className="h-full flex flex-col items-center justify-center text-center p-4 text-xs"
@@ -363,10 +352,8 @@ export const RightBomPanel: React.FC<RightBomPanelProps> = ({
                 onToast(`当前没有少于 ${mergeThreshold} 颗的杂色需要合并。`, 'info');
               }
             }}
-            className="flex-1 h-8 px-3 rounded-full text-xs font-medium border flex items-center justify-center gap-1.5 disabled:opacity-40 m3-hover"
+            className="flex-1 h-8 px-3 rounded-full text-xs font-medium flex items-center justify-center gap-1.5 disabled:opacity-40 gemini-card m3-hover"
             style={{
-              backgroundColor: 'var(--md-surface)',
-              borderColor: 'var(--md-outline-variant)',
               color: 'var(--md-on-surface)',
             }}
           >

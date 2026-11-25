@@ -52,7 +52,7 @@ export const CanvasToolbar: React.FC = () => {
       className="shrink-0 w-full border-b px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-1.5"
       style={{
         backgroundColor: 'var(--md-surface)',
-        borderColor: 'var(--md-outline-variant)',
+        borderColor: 'var(--md-outline-subtle)',
       }}
     >
       {/* Drawing tools */}

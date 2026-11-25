@@ -7,7 +7,7 @@ import {
   rectanglePoints,
   type GridPoint,
 } from '../core/editingTools';
-import { useEditorStore } from '../store/editorStore';
+import { resolveThemeMode, useEditorStore } from '../store/editorStore';
 
 const BASE_CELL_PX = 20;
 const RULER_SIZE = 28;
@@ -38,6 +38,7 @@ export const CanvasViewport: React.FC = () => {
   const zoom = useEditorStore((s) => s.zoom);
   const panX = useEditorStore((s) => s.panX);
   const panY = useEditorStore((s) => s.panY);
+  const theme = useEditorStore((s) => s.theme);
 
   const setZoom = useEditorStore((s) => s.setZoom);
   const setPan = useEditorStore((s) => s.setPan);
@@ -51,6 +52,29 @@ export const CanvasViewport: React.FC = () => {
   const [hoverCell, setHoverCell] = useState<GridPoint | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
   const [viewportSize, setViewportSize] = useState({ w: 800, h: 600 });
+  const [domTheme, setDomTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof document !== 'undefined') {
+      const attr = document.documentElement.getAttribute('data-theme');
+      if (attr === 'dark' || attr === 'light') return attr;
+    }
+    return resolveThemeMode(theme);
+  });
+
+  useEffect(() => {
+    setDomTheme(resolveThemeMode(theme));
+    if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
+    const observer = new MutationObserver(() => {
+      const attr = document.documentElement.getAttribute('data-theme');
+      if (attr === 'dark' || attr === 'light') {
+        setDomTheme(attr);
+      }
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    return () => observer.disconnect();
+  }, [theme]);
 
   // Mutable stroke refs for 60fps painting without React store thrashing mid-drag
   const draftGridRef = useRef<Int16Array | null>(null);
@@ -166,13 +190,23 @@ export const CanvasViewport: React.FC = () => {
     ctx.save();
     ctx.scale(dpr, dpr);
 
-    // Clear viewport background
+    // Clear viewport background using live resolved theme tokens
+    const isDark = domTheme === 'dark';
     const styles = getComputedStyle(document.documentElement);
-    const bgSurface = styles.getPropertyValue('--md-surface-container').trim() || '#F0F4F9';
-    const surfaceBg = styles.getPropertyValue('--md-surface').trim() || '#FFFFFF';
-    const textMuted = styles.getPropertyValue('--md-on-surface-variant').trim() || '#444746';
-    const outlineCol = styles.getPropertyValue('--md-outline-variant').trim() || '#C4C7C5';
-    const primaryCol = styles.getPropertyValue('--md-primary').trim() || '#0B57D0';
+    const bgSurface =
+      styles.getPropertyValue('--md-surface-container').trim() || (isDark ? '#1E1F20' : '#F0F4F9');
+    const surfaceBg =
+      styles.getPropertyValue('--md-surface').trim() || (isDark ? '#131314' : '#FFFFFF');
+    const textMuted =
+      styles.getPropertyValue('--md-on-surface-variant').trim() || (isDark ? '#C4C7C5' : '#444746');
+    const outlineCol =
+      styles.getPropertyValue('--md-outline-variant').trim() ||
+      (isDark ? 'rgba(227,227,227,0.10)' : 'rgba(31,31,31,0.09)');
+    const outlineSubtle =
+      styles.getPropertyValue('--md-outline-subtle').trim() ||
+      (isDark ? 'rgba(227,227,227,0.06)' : 'rgba(31,31,31,0.06)');
+    const primaryCol =
+      styles.getPropertyValue('--md-primary').trim() || (isDark ? '#A8C7FA' : '#0B57D0');
 
     ctx.fillStyle = bgSurface;
     ctx.fillRect(0, 0, viewportSize.w, viewportSize.h);
@@ -186,9 +220,14 @@ export const CanvasViewport: React.FC = () => {
     const minRow = Math.max(0, Math.floor((rulerInset - originY) / cellPx));
     const maxRow = Math.min(height - 1, Math.floor((viewportSize.h - rulerInset - originY) / cellPx));
 
-    // Board backing shadowless border
+    // Board backing with subtle Gemini-style ambient shadow (reset immediately so cells stay crisp/fast)
+    ctx.save();
+    ctx.shadowColor = isDark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.08)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 2;
     ctx.fillStyle = surfaceBg;
     ctx.fillRect(originX, originY, boardW, boardH);
+    ctx.restore();
 
     // Preview points map for line/rect ghost overlay
     const previewMap = new Set<number>();
@@ -221,9 +260,15 @@ export const CanvasViewport: React.FC = () => {
             : null;
 
         if (!bead) {
-          // Subtle checkerboard for empty cell
+          // Subtle theme-aware checkerboard for empty cell
           const isDarkCheck = (r + c) % 2 === 1;
-          ctx.fillStyle = isDarkCheck ? 'rgba(128,128,128,0.10)' : 'rgba(128,128,128,0.03)';
+          ctx.fillStyle = isDark
+            ? isDarkCheck
+              ? 'rgba(255,255,255,0.06)'
+              : 'rgba(255,255,255,0.02)'
+            : isDarkCheck
+              ? 'rgba(0,0,0,0.055)'
+              : 'rgba(0,0,0,0.015)';
           ctx.fillRect(cx, cy, cellPx + 0.3, cellPx + 0.3);
         } else {
           const isDimmed =
@@ -297,7 +342,7 @@ export const CanvasViewport: React.FC = () => {
 
     // Board outer border
     ctx.strokeStyle = outlineCol;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1;
     ctx.strokeRect(originX, originY, boardW, boardH);
 
     // Mirror symmetry axis indicators
@@ -351,7 +396,7 @@ export const CanvasViewport: React.FC = () => {
       ctx.fillRect(0, 0, RULER_SIZE, viewportSize.h);
       ctx.fillRect(viewportSize.w - RULER_SIZE, 0, RULER_SIZE, viewportSize.h);
 
-      ctx.strokeStyle = outlineCol;
+      ctx.strokeStyle = outlineSubtle;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(RULER_SIZE, RULER_SIZE);
@@ -625,10 +670,8 @@ export const CanvasViewport: React.FC = () => {
 
       {/* Bottom floating status pill (hover coords + color + zoom) */}
       <div
-        className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 rounded-full text-xs border whitespace-nowrap max-w-[94%]"
+        className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 rounded-full text-xs gemini-pill whitespace-nowrap max-w-[94%]"
         style={{
-          backgroundColor: 'var(--md-surface)',
-          borderColor: 'var(--md-outline-variant)',
           color: 'var(--md-on-surface)',
         }}
       >

@@ -31,6 +31,35 @@
   }
 }
 
+/* Gemini-inspired soft surfaces & ambient elevation */
+.gemini-card {
+  background-color: var(--md-surface);
+  border: 1px solid var(--md-outline-subtle);
+  box-shadow: var(--md-shadow-sm);
+}
+
+.gemini-pill {
+  background-color: var(--md-surface);
+  border: 1px solid var(--md-outline-variant);
+  box-shadow: var(--md-shadow-md);
+}
+
+.gemini-modal {
+  background-color: var(--md-surface);
+  border: 1px solid var(--md-outline-variant);
+  box-shadow: var(--md-shadow-lg);
+}
+
+.gemini-tonal-btn {
+  background-color: var(--md-surface-container);
+  border: 1px solid transparent;
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.gemini-tonal-btn:hover {
+  background-color: var(--md-surface-container-high);
+}
+
 /* M3 Callout */
 .m3-callout {
   border-radius: 8px;
@@ -78,6 +107,6 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--md-outline-variant);
+  background: var(--md-outline-strong);
   border-radius: 9999px;
 }

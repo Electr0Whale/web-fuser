@@ -14,12 +14,31 @@ import { removeBackgroundFromGrid } from '../core/backgroundRemoval';
 import { downscalePhotoToGrid } from '../core/photoDownscaler';
 import { downscalePixelArtToGrid } from '../core/pixelDownscaler';
 import { BUILTIN_PALETTES, getPaletteById } from '../data/palettes';
-import type { ConvertAlgorithm } from '../workers/convert.worker';
+import type { DitherMode } from '../core/dithering';
+import { ALGORITHM_OPTIONS, type ConvertAlgorithm } from '../workers/convert.worker';
 
 export type EditorTool = 'move' | 'brush' | 'eraser' | 'eyedropper' | 'bucket' | 'line' | 'rect';
 export type GridStyle = 'gapped' | 'line' | 'seamless';
 export type CoordFormat = 'number' | 'alpha-col';
 export type ThemeMode = 'light' | 'dark' | 'system';
+
+export function resolveThemeMode(theme: ThemeMode): 'light' | 'dark' {
+  if (theme === 'system') {
+    return typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
+  }
+  return theme;
+}
+
+export function applyThemeToDom(theme: ThemeMode): 'light' | 'dark' {
+  const resolved = resolveThemeMode(theme);
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('data-theme', resolved);
+  }
+  return resolved;
+}
 
 export interface HistoryEntry {
   id: number;
@@ -99,7 +118,6 @@ export interface EditorState {
   sourceImage: SourceImageData | null;
   isConverting: boolean;
   convertDurationMs: number | null;
-  detectedBorderWidth: number;
 
   // Palette & conversion settings
   brandId: string;
@@ -111,9 +129,9 @@ export interface EditorState {
   brightness: number;
   contrast: number;
   saturation: number;
-  dither: boolean;
+  ditherMode: DitherMode;
+  ditherStrength: number;
   strokeStrength: number;
-  detectBorder: boolean;
   bgTolerance: number;
 
   // Tool & viewport settings
@@ -180,9 +198,9 @@ export interface EditorState {
       brightness: number;
       contrast: number;
       saturation: number;
-      dither: boolean;
+      ditherMode: DitherMode;
+      ditherStrength: number;
       strokeStrength: number;
-      detectBorder: boolean;
     }>,
     reconvert?: boolean,
   ) => void;
@@ -237,7 +255,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   sourceImage: null,
   isConverting: false,
   convertDurationMs: null,
-  detectedBorderWidth: 0,
 
   brandId: BUILTIN_PALETTES[0].id,
   customPalettes: [],
@@ -248,9 +265,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   brightness: 1.0,
   contrast: 1.0,
   saturation: 1.0,
-  dither: false,
+  ditherMode: 'none',
+  ditherStrength: 0.85,
   strokeStrength: 0.75,
-  detectBorder: true,
   bgTolerance: 14,
 
   tool: 'brush',
@@ -296,7 +313,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   markSaved: (projectId, savedAt) =>
     set({ projectId, lastSavedAt: savedAt, isDirty: false }),
 
-  setTheme: (theme) => set({ theme }),
+  setTheme: (theme) => {
+    applyThemeToDom(theme);
+    set({ theme });
+  },
   setTool: (tool) => set({ tool }),
   setActiveColorIndex: (activeColorIndex) =>
     set((s) => ({
@@ -353,9 +373,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (patch.brightness !== undefined) next.brightness = patch.brightness;
       if (patch.contrast !== undefined) next.contrast = patch.contrast;
       if (patch.saturation !== undefined) next.saturation = patch.saturation;
-      if (patch.dither !== undefined) next.dither = patch.dither;
+      if (patch.ditherMode !== undefined) next.ditherMode = patch.ditherMode;
+      if (patch.ditherStrength !== undefined) next.ditherStrength = patch.ditherStrength;
       if (patch.strokeStrength !== undefined) next.strokeStrength = patch.strokeStrength;
-      if (patch.detectBorder !== undefined) next.detectBorder = patch.detectBorder;
 
       if (patch.width !== undefined && patch.height !== undefined) {
         next.pendingWidth = Math.max(8, Math.min(200, Math.round(patch.width)));
@@ -442,13 +462,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       width: number,
       height: number,
       durationMs: number,
-      detectedBorderWidth: number,
     ) => {
       const cur = get();
       if (reqId !== convertSeq) return; // stale request
+      const algoLabel =
+        ALGORITHM_OPTIONS.find((opt) => opt.value === cur.algorithm)?.label ?? cur.algorithm;
       const entry: HistoryEntry = {
         id: historySeq++,
-        label: `图片转换 · ${width}×${height} (${cur.algorithm === 'pixel-art' ? '智能像素画' : '照片写实'})`,
+        label: `图片转换 · ${width}×${height} (${algoLabel})`,
         grid: new Int16Array(grid),
         width,
         height,
@@ -465,7 +486,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         initialHeight: height,
         isConverting: false,
         convertDurationMs: durationMs,
-        detectedBorderWidth,
         highlightColorIndex: null,
         isDirty: true,
         history: [entry],
@@ -485,7 +505,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           width: number;
           height: number;
           durationMs: number;
-          detectedBorderWidth: number;
         };
         if (data.requestId !== reqId) return;
         applyResult(
@@ -493,7 +512,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           data.width,
           data.height,
           data.durationMs,
-          data.detectedBorderWidth,
         );
       };
       worker.onerror = () => {
@@ -514,9 +532,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           brightness: s.brightness,
           contrast: s.contrast,
           saturation: s.saturation,
-          dither: s.dither,
+          ditherMode: s.ditherMode,
+          ditherStrength: s.ditherStrength,
           strokeStrength: s.strokeStrength,
-          detectBorder: s.detectBorder,
         },
         [bufferCopy],
       );
@@ -526,7 +544,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Fallback synchronous path (e.g. unit tests / environments without Worker)
     const start = performance.now();
     let resGrid: Int16Array;
-    let borderW = 0;
     if (s.algorithm === 'pixel-art') {
       const r = downscalePixelArtToGrid(
         s.sourceImage.rgba,
@@ -539,11 +556,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           maxColors: s.maxColors,
           metric: s.metric,
           strokeStrength: s.strokeStrength,
-          detectBorder: s.detectBorder,
         },
       );
       resGrid = r.grid;
-      borderW = r.detectedBorderWidth;
     } else {
       const r = downscalePhotoToGrid(
         s.sourceImage.rgba,
@@ -553,17 +568,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           targetWidth: targetW,
           targetHeight: targetH,
           palette: palette.colors,
+          algorithm: s.algorithm,
           maxColors: s.maxColors,
           metric: s.metric,
           brightness: s.brightness,
           contrast: s.contrast,
           saturation: s.saturation,
-          dither: s.dither,
+          ditherMode: s.ditherMode,
+          ditherStrength: s.ditherStrength,
         },
       );
       resGrid = r.grid;
     }
-    applyResult(resGrid, targetW, targetH, Math.round(performance.now() - start), borderW);
+    applyResult(resGrid, targetW, targetH, Math.round(performance.now() - start));
   },
 
   commitGridChange: (nextGrid, label, nextW, nextH) =>
@@ -683,7 +700,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       initialWidth: targetW,
       initialHeight: targetH,
       highlightColorIndex: null,
-      detectedBorderWidth: 0,
       convertDurationMs: null,
       history: [entry],
       historyIndex: 0,

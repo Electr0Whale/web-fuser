@@ -1,15 +1,15 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
   Eraser,
   ImagePlus,
   Lock,
-  SlidersHorizontal,
-  Sparkles,
+  RotateCcw,
   Unlock,
   Upload,
 } from 'lucide-react';
+import { DITHER_MODE_OPTIONS, type DitherMode } from '../core/dithering';
 import { BUILTIN_PALETTES, parseCustomPaletteFile } from '../data/palettes';
 import {
   CANVAS_SIZE_PRESETS,
@@ -18,6 +18,7 @@ import {
   useEditorStore,
   type GridStyle,
 } from '../store/editorStore';
+import { ALGORITHM_OPTIONS, type ConvertAlgorithm } from '../workers/convert.worker';
 
 interface LeftControlPanelProps {
   onToast: (msg: string, tone?: 'info' | 'success' | 'warn' | 'danger') => void;
@@ -41,16 +42,49 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
   const lockAspect = useEditorStore((s) => s.lockAspect);
   const sourceImage = useEditorStore((s) => s.sourceImage);
   const convertDurationMs = useEditorStore((s) => s.convertDurationMs);
-  const detectedBorderWidth = useEditorStore((s) => s.detectedBorderWidth);
 
   const algorithm = useEditorStore((s) => s.algorithm);
   const brightness = useEditorStore((s) => s.brightness);
   const contrast = useEditorStore((s) => s.contrast);
   const saturation = useEditorStore((s) => s.saturation);
-  const dither = useEditorStore((s) => s.dither);
+  const ditherMode = useEditorStore((s) => s.ditherMode);
+  const ditherStrength = useEditorStore((s) => s.ditherStrength);
   const strokeStrength = useEditorStore((s) => s.strokeStrength);
-  const detectBorder = useEditorStore((s) => s.detectBorder);
   const bgTolerance = useEditorStore((s) => s.bgTolerance);
+
+  // Local draft strings so typing multi-digit numbers (e.g. "7" -> "72") never clamps mid-keystroke
+  const [widthInput, setWidthInput] = useState(String(width));
+  const [heightInput, setHeightInput] = useState(String(height));
+  const editingFieldRef = useRef<'w' | 'h' | null>(null);
+  const wTimerRef = useRef<number | null>(null);
+  const hTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (editingFieldRef.current !== 'w') setWidthInput(String(width));
+  }, [width]);
+
+  useEffect(() => {
+    if (editingFieldRef.current !== 'h') setHeightInput(String(height));
+  }, [height]);
+
+  useEffect(() => {
+    return () => {
+      if (wTimerRef.current !== null) window.clearTimeout(wTimerRef.current);
+      if (hTimerRef.current !== null) window.clearTimeout(hTimerRef.current);
+    };
+  }, []);
+
+  const commitDim = (axis: 'w' | 'h', val: number) => {
+    const clamped = Math.max(8, Math.min(200, Math.round(val)));
+    if (axis === 'w') {
+      if (sourceImage) updateConversionParams({ width: clamped });
+      else setDimensions(clamped, height);
+    } else {
+      if (sourceImage) updateConversionParams({ height: clamped });
+      else setDimensions(width, clamped);
+    }
+    return clamped;
+  };
 
   const brandId = useEditorStore((s) => s.brandId);
   const customPalettes = useEditorStore((s) => s.customPalettes);
@@ -102,7 +136,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
           Math.max(img.naturalWidth, img.naturalHeight) <= 320 ||
           file.name.toLowerCase().endsWith('.png');
         if (!isLikelyPixelArt) {
-          updateConversionParams({ algorithm: 'photo' }, false);
+          updateConversionParams({ algorithm: 'box-average' }, false);
         }
 
         setSourceImage({
@@ -172,7 +206,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
       className={`${fullWidth ? 'w-full' : 'w-[280px]'} shrink-0 h-full overflow-y-auto border-r p-3 flex flex-col gap-3`}
       style={{
         backgroundColor: 'var(--md-surface-container)',
-        borderColor: 'var(--md-outline-variant)',
+        borderColor: 'var(--md-outline-subtle)',
       }}
     >
       {/* Image Upload Dropzone Card */}
@@ -188,10 +222,9 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
           const f = e.dataTransfer.files?.[0];
           if (f) handleImageFile(f);
         }}
-        className="rounded-xl border p-3 flex flex-col gap-2.5 transition-colors"
+        className="rounded-xl p-3 flex flex-col gap-2.5 gemini-card transition-colors"
         style={{
-          backgroundColor: 'var(--md-surface)',
-          borderColor: isDragging ? 'var(--md-primary)' : 'var(--md-outline-variant)',
+          borderColor: isDragging ? 'var(--md-primary)' : 'var(--md-outline-subtle)',
         }}
       >
         <div className="flex items-center justify-between">
@@ -289,13 +322,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
       </div>
 
       {/* Section 01: Canvas Specs */}
-      <div
-        className="rounded-xl border p-2 flex flex-col gap-2"
-        style={{
-          backgroundColor: 'var(--md-surface)',
-          borderColor: 'var(--md-outline-variant)',
-        }}
-      >
+      <div className="rounded-xl p-2 flex flex-col gap-2 gemini-card">
         <AccordionHeader id="size" num="01" title="画布规格" />
         {openSection === 'size' && (
           <div className="px-2 pb-2 flex flex-col gap-3">
@@ -313,11 +340,10 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
                         setDimensions(sz, sz);
                       }
                     }}
-                    className="h-7 rounded-full font-mono text-xs border transition-colors"
+                    className="h-7 rounded-full font-mono text-xs transition-colors"
                     style={{
                       backgroundColor: active ? 'var(--md-primary)' : 'var(--md-surface-container)',
                       color: active ? 'var(--md-on-primary)' : 'var(--md-on-surface)',
-                      borderColor: active ? 'var(--md-primary)' : 'var(--md-outline-variant)',
                     }}
                   >
                     {sz}×{sz}
@@ -332,14 +358,43 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
                   宽 (8-200)
                 </span>
                 <input
-                  type="number"
-                  min={8}
-                  max={200}
-                  value={width}
+                  type="text"
+                  inputMode="numeric"
+                  aria-label="画布宽度"
+                  value={widthInput}
+                  onFocus={() => {
+                    editingFieldRef.current = 'w';
+                  }}
                   onChange={(e) => {
-                    const v = Number(e.target.value) || 8;
-                    if (sourceImage) updateConversionParams({ width: v });
-                    else setDimensions(v, height);
+                    const raw = e.target.value;
+                    if (!/^\d{0,3}$/.test(raw)) return;
+                    setWidthInput(raw);
+                    if (wTimerRef.current !== null) window.clearTimeout(wTimerRef.current);
+                    if (raw !== '') {
+                      const num = Number(raw);
+                      if (Number.isInteger(num) && num >= 8 && num <= 200) {
+                        wTimerRef.current = window.setTimeout(() => {
+                          commitDim('w', num);
+                        }, 450);
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    if (wTimerRef.current !== null) window.clearTimeout(wTimerRef.current);
+                    editingFieldRef.current = null;
+                    const parsed = parseInt(widthInput, 10);
+                    const finalVal = Number.isNaN(parsed) ? width : commitDim('w', parsed);
+                    setWidthInput(String(finalVal));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      (e.currentTarget as HTMLInputElement).blur();
+                    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      const base = parseInt(widthInput, 10) || width;
+                      const next = commitDim('w', base + (e.key === 'ArrowUp' ? 1 : -1));
+                      setWidthInput(String(next));
+                    }
                   }}
                   className="w-full h-8 px-2.5 rounded-lg border font-mono text-xs"
                   style={{
@@ -353,9 +408,8 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
                 onClick={() => updateConversionParams({ lockAspect: !lockAspect }, false)}
                 aria-label={lockAspect ? '解锁宽高比' : '锁定宽高比'}
                 title={lockAspect ? '已锁定宽高比' : '自由拉伸宽高'}
-                className="mt-4 w-8 h-8 rounded-full flex items-center justify-center border m3-hover"
+                className="mt-4 w-8 h-8 rounded-full flex items-center justify-center gemini-tonal-btn"
                 style={{
-                  borderColor: 'var(--md-outline-variant)',
                   color: lockAspect ? 'var(--md-primary)' : 'var(--md-on-surface-variant)',
                 }}
               >
@@ -366,14 +420,43 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
                   高 (8-200)
                 </span>
                 <input
-                  type="number"
-                  min={8}
-                  max={200}
-                  value={height}
+                  type="text"
+                  inputMode="numeric"
+                  aria-label="画布高度"
+                  value={heightInput}
+                  onFocus={() => {
+                    editingFieldRef.current = 'h';
+                  }}
                   onChange={(e) => {
-                    const v = Number(e.target.value) || 8;
-                    if (sourceImage) updateConversionParams({ height: v });
-                    else setDimensions(width, v);
+                    const raw = e.target.value;
+                    if (!/^\d{0,3}$/.test(raw)) return;
+                    setHeightInput(raw);
+                    if (hTimerRef.current !== null) window.clearTimeout(hTimerRef.current);
+                    if (raw !== '') {
+                      const num = Number(raw);
+                      if (Number.isInteger(num) && num >= 8 && num <= 200) {
+                        hTimerRef.current = window.setTimeout(() => {
+                          commitDim('h', num);
+                        }, 450);
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    if (hTimerRef.current !== null) window.clearTimeout(hTimerRef.current);
+                    editingFieldRef.current = null;
+                    const parsed = parseInt(heightInput, 10);
+                    const finalVal = Number.isNaN(parsed) ? height : commitDim('h', parsed);
+                    setHeightInput(String(finalVal));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      (e.currentTarget as HTMLInputElement).blur();
+                    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      const base = parseInt(heightInput, 10) || height;
+                      const next = commitDim('h', base + (e.key === 'ArrowUp' ? 1 : -1));
+                      setHeightInput(String(next));
+                    }
                   }}
                   className="w-full h-8 px-2.5 rounded-lg border font-mono text-xs"
                   style={{
@@ -388,87 +471,111 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
       </div>
 
       {/* Section 02: Conversion & Tuning */}
-      <div
-        className="rounded-xl border p-2 flex flex-col gap-2"
-        style={{
-          backgroundColor: 'var(--md-surface)',
-          borderColor: 'var(--md-outline-variant)',
-        }}
-      >
+      <div className="rounded-xl p-2 flex flex-col gap-2 gemini-card">
         <AccordionHeader id="convert" num="02" title="转换与调校" />
         {openSection === 'convert' && (
           <div className="px-2 pb-2 flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => updateConversionParams({ algorithm: 'pixel-art' })}
-                className="h-8 rounded-full text-xs font-medium border flex items-center justify-center gap-1"
-                style={{
-                  backgroundColor:
-                    algorithm === 'pixel-art' ? 'var(--md-primary)' : 'var(--md-surface-container)',
-                  color:
-                    algorithm === 'pixel-art' ? 'var(--md-on-primary)' : 'var(--md-on-surface)',
-                  borderColor:
-                    algorithm === 'pixel-art' ? 'var(--md-primary)' : 'var(--md-outline-variant)',
-                }}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                智能像素画
-              </button>
-              <button
-                type="button"
-                onClick={() => updateConversionParams({ algorithm: 'photo' })}
-                className="h-8 rounded-full text-xs font-medium border flex items-center justify-center gap-1"
-                style={{
-                  backgroundColor:
-                    algorithm === 'photo' ? 'var(--md-primary)' : 'var(--md-surface-container)',
-                  color: algorithm === 'photo' ? 'var(--md-on-primary)' : 'var(--md-on-surface)',
-                  borderColor:
-                    algorithm === 'photo' ? 'var(--md-primary)' : 'var(--md-outline-variant)',
-                }}
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                照片写实
-              </button>
+            <div>
+              <span className="block text-[11px] mb-1.5" style={{ color: 'var(--md-on-surface-variant)' }}>
+                下采样转换算法
+              </span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {ALGORITHM_OPTIONS.map((opt) => {
+                  const active = algorithm === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => updateConversionParams({ algorithm: opt.value as ConvertAlgorithm })}
+                      className={`h-8 px-2.5 rounded-full text-xs font-medium transition-colors ${
+                        opt.value === 'pixel-art' ? 'col-span-2' : ''
+                      }`}
+                      style={{
+                        backgroundColor: active ? 'var(--md-primary)' : 'var(--md-surface-container)',
+                        color: active ? 'var(--md-on-primary)' : 'var(--md-on-surface)',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="m3-callout m3-callout-info">
+              <strong>
+                {ALGORITHM_OPTIONS.find((o) => o.value === algorithm)?.label}
+              </strong>
+              ：{ALGORITHM_OPTIONS.find((o) => o.value === algorithm)?.description}
             </div>
 
             {algorithm === 'pixel-art' ? (
-              <>
-                <div className="m3-callout m3-callout-info">
-                  <strong>轮廓骨架拓扑投影</strong>：保护 1px 细线与硬边缘，不产生模糊混色。
-                  {detectedBorderWidth > 0 && (
-                    <div className="mt-1 font-mono">已识别原图 {detectedBorderWidth}px 嵌套外框</div>
-                  )}
+              <label className="text-xs">
+                <div className="flex justify-between mb-1">
+                  <span>边缘细线保护强度</span>
+                  <span className="font-mono">{Math.round(strokeStrength * 100)}%</span>
                 </div>
-                <label className="text-xs">
-                  <div className="flex justify-between mb-1">
-                    <span>边缘细线保护强度</span>
-                    <span className="font-mono">{Math.round(strokeStrength * 100)}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={strokeStrength}
-                    onChange={(e) =>
-                      updateConversionParams({ strokeStrength: Number(e.target.value) })
-                    }
-                    className="w-full accent-[var(--md-primary)]"
-                  />
-                </label>
-                <label className="flex items-center justify-between text-xs cursor-pointer">
-                  <span>自动识别并重建像素外框</span>
-                  <input
-                    type="checkbox"
-                    checked={detectBorder}
-                    onChange={(e) => updateConversionParams({ detectBorder: e.target.checked })}
-                    className="accent-[var(--md-primary)] w-4 h-4"
-                  />
-                </label>
-              </>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={strokeStrength}
+                  onChange={(e) =>
+                    updateConversionParams({ strokeStrength: Number(e.target.value) })
+                  }
+                  className="w-full accent-[var(--md-primary)]"
+                />
+              </label>
             ) : (
               <>
+                <div>
+                  <span className="block text-[11px] mb-1" style={{ color: 'var(--md-on-surface-variant)' }}>
+                    抖动算法 (Dithering)
+                  </span>
+                  <select
+                    aria-label="抖动算法"
+                    value={ditherMode}
+                    onChange={(e) =>
+                      updateConversionParams({ ditherMode: e.target.value as DitherMode })
+                    }
+                    className="w-full h-8 px-2.5 rounded-lg border text-xs"
+                    style={{
+                      backgroundColor: 'var(--md-surface-container)',
+                      borderColor: 'var(--md-outline-variant)',
+                    }}
+                  >
+                    {DITHER_MODE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-1 text-[11px]" style={{ color: 'var(--md-on-surface-variant)' }}>
+                    {DITHER_MODE_OPTIONS.find((o) => o.value === ditherMode)?.description}
+                  </div>
+                </div>
+
+                {ditherMode !== 'none' && (
+                  <label className="text-xs">
+                    <div className="flex justify-between mb-1">
+                      <span>抖动强度</span>
+                      <span className="font-mono">{Math.round(ditherStrength * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      value={ditherStrength}
+                      onChange={(e) =>
+                        updateConversionParams({ ditherStrength: Number(e.target.value) })
+                      }
+                      className="w-full accent-[var(--md-primary)]"
+                    />
+                  </label>
+                )}
+
                 <label className="text-xs">
                   <div className="flex justify-between mb-1">
                     <span>亮度</span>
@@ -514,15 +621,19 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
                     className="w-full accent-[var(--md-primary)]"
                   />
                 </label>
-                <label className="flex items-center justify-between text-xs cursor-pointer">
-                  <span>Floyd–Steinberg 抖动</span>
-                  <input
-                    type="checkbox"
-                    checked={dither}
-                    onChange={(e) => updateConversionParams({ dither: e.target.checked })}
-                    className="accent-[var(--md-primary)] w-4 h-4"
-                  />
-                </label>
+
+                {(brightness !== 1 || contrast !== 1 || saturation !== 1) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateConversionParams({ brightness: 1, contrast: 1, saturation: 1 })
+                    }
+                    className="h-7 px-3 rounded-full text-xs flex items-center justify-center gap-1 gemini-tonal-btn"
+                    style={{ color: 'var(--md-primary)' }}
+                  >
+                    <RotateCcw className="w-3 h-3" /> 重置色调参数
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -530,13 +641,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
       </div>
 
       {/* Section 03: Brand & Display */}
-      <div
-        className="rounded-xl border p-2 flex flex-col gap-2"
-        style={{
-          backgroundColor: 'var(--md-surface)',
-          borderColor: 'var(--md-outline-variant)',
-        }}
-      >
+      <div className="rounded-xl p-2 flex flex-col gap-2 gemini-card">
         <AccordionHeader id="brand" num="03" title="品牌与显示" />
         {openSection === 'brand' && (
           <div className="px-2 pb-2 flex flex-col gap-3">
@@ -730,13 +835,7 @@ export const LeftControlPanel: React.FC<LeftControlPanelProps> = ({
       </div>
 
       {/* Section 04: Experience Settings */}
-      <div
-        className="rounded-xl border p-2 flex flex-col gap-2"
-        style={{
-          backgroundColor: 'var(--md-surface)',
-          borderColor: 'var(--md-outline-variant)',
-        }}
-      >
+      <div className="rounded-xl p-2 flex flex-col gap-2 gemini-card">
         <AccordionHeader id="prefs" num="04" title="体验设置" />
         {openSection === 'prefs' && (
           <div className="px-2 pb-2 flex flex-col gap-3">

@@ -52,16 +52,14 @@ const ModalShell: React.FC<ModalShellProps> = ({
     aria-label={title}
   >
     <div
-      className={`w-full ${widthClass} max-h-[90vh] rounded-2xl border flex flex-col overflow-hidden`}
+      className={`w-full ${widthClass} max-h-[90vh] rounded-2xl gemini-modal flex flex-col overflow-hidden`}
       style={{
-        backgroundColor: 'var(--md-surface)',
-        borderColor: 'var(--md-outline-variant)',
         color: 'var(--md-on-surface)',
       }}
     >
       <div
         className="px-5 py-3.5 border-b flex items-center justify-between shrink-0"
-        style={{ borderColor: 'var(--md-outline-variant)' }}
+        style={{ borderColor: 'var(--md-outline-subtle)' }}
       >
         <h2 className="font-display text-base font-semibold">{title}</h2>
         <button

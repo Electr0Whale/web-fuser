@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { CanvasToolbar } from './components/CanvasToolbar';
 import { CanvasViewport } from './components/CanvasViewport';
 import { HeaderBar } from './components/HeaderBar';
@@ -14,7 +14,7 @@ import {
 } from './components/Modals';
 import { RightBomPanel } from './components/RightBomPanel';
 import { parseImportedPatternFile, saveProjectToStorage } from './storage/projectStorage';
-import { useEditorStore } from './store/editorStore';
+import { applyThemeToDom, useEditorStore } from './store/editorStore';
 
 interface ToastState {
   message: string;
@@ -71,15 +71,14 @@ export function App() {
     return () => window.clearTimeout(t);
   }, [toast]);
 
-  // Sync [data-theme] attribute
-  useEffect(() => {
-    const resolved =
-      theme === 'system'
-        ? window.matchMedia('(prefers-color-scheme: dark)').matches
-          ? 'dark'
-          : 'light'
-        : theme;
-    document.documentElement.setAttribute('data-theme', resolved);
+  // Sync [data-theme] attribute synchronously before browser paint + listen to system changes
+  useLayoutEffect(() => {
+    applyThemeToDom(theme);
+    if (theme !== 'system' || typeof window === 'undefined') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => applyThemeToDom('system');
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
   }, [theme]);
 
   // Responsive breakpoint listener
@@ -284,8 +283,8 @@ export function App() {
         <div
           role="status"
           aria-live="polite"
-          className={`fixed bottom-16 lg:bottom-5 right-5 z-50 m3-callout m3-callout-${toast.tone} max-w-sm border`}
-          style={{ borderColor: 'var(--md-outline-variant)' }}
+          className={`fixed bottom-16 lg:bottom-5 right-5 z-50 m3-callout m3-callout-${toast.tone} max-w-sm`}
+          style={{ boxShadow: 'var(--md-shadow-md)' }}
         >
           {toast.message}
         </div>
